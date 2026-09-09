@@ -125,3 +125,54 @@ export async function getVzletSharedTasks(
   if (error) throw error;
   return data ?? [];
 }
+
+export type VzletLeaderboardEntry = {
+  userId: string;
+  name: string;
+  days: { day: string; points: number }[];
+};
+
+/**
+ * Vsi vidni udeleženci tedenske lestvice ("Tabla") — kdor deli cilje, plus
+ * trenutni uporabnik sam (da vidi svoje mesto, tudi če sam ne deli) — z
+ * njihovimi dnevnimi točkami. Tedenski/skupni seštevek izračuna klient
+ * (lokalni "ponedeljek tedna", glej `mondayOf`/`weekPoints` v `vzlet/score`).
+ */
+export async function getVzletLeaderboard(
+  supabase: TypedSupabaseClient
+): Promise<VzletLeaderboardEntry[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: sharingRows, error: sharingError } = await supabase
+    .from("pisi_vzlet_sharing")
+    .select("user_id, display_name"); // RLS: shared=true vsi + moja lastna vrstica
+
+  if (sharingError) throw sharingError;
+
+  const names = new Map<string, string>();
+  for (const r of sharingRows ?? []) {
+    names.set(r.user_id, r.display_name?.trim() || "Uporabnik");
+  }
+  if (!names.has(user.id)) {
+    names.set(user.id, (user.email?.split("@")[0] ?? "Jaz").slice(0, 60));
+  }
+
+  const userIds = [...names.keys()];
+  const { data: dayRows, error: daysError } = await supabase
+    .from("pisi_vzlet_days")
+    .select("user_id, day, points")
+    .in("user_id", userIds); // RLS: lastne + shared=true (glej 0007_vzlet_days_shared.sql)
+
+  if (daysError) throw daysError;
+
+  return userIds.map((id) => ({
+    userId: id,
+    name: names.get(id)!,
+    days: (dayRows ?? [])
+      .filter((d) => d.user_id === id)
+      .map((d) => ({ day: d.day, points: d.points })),
+  }));
+}

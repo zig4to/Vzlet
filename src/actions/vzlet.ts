@@ -7,7 +7,7 @@ import {
   getVzletSharedTasks,
   getVzletSharers,
 } from "@/lib/data/vzlet";
-import { dayPoints } from "@/lib/vzlet/score";
+import { dayPoints, effectiveTaskPoints } from "@/lib/vzlet/score";
 import { rateTaskDifficulty } from "@/lib/ai/difficulty";
 import type {
   VzletSharedTask,
@@ -133,7 +133,7 @@ export async function settleVzletAction(
   const [{ data: pastTasks }, { data: settledDays }] = await Promise.all([
     supabase
       .from("pisi_vzlet_tasks")
-      .select("for_date, done, difficulty")
+      .select("for_date, done, difficulty, created_at")
       .lt("for_date", todayStr),
     supabase.from("pisi_vzlet_days").select("day").lt("day", todayStr),
   ]);
@@ -146,7 +146,11 @@ export async function settleVzletAction(
     const e = byDay.get(t.for_date) ?? { total: 0, done: 0, difficultySum: 0 };
     e.total += 1;
     if (t.done) e.done += 1;
-    e.difficultySum += t.difficulty ?? 0;
+    e.difficultySum += effectiveTaskPoints(
+      t.created_at.slice(0, 10),
+      t.for_date,
+      t.difficulty
+    );
     byDay.set(t.for_date, e);
   }
   const already = new Set((settledDays ?? []).map((d) => d.day));

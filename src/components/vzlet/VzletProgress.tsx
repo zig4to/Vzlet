@@ -11,6 +11,8 @@ import {
   bestStreak,
   cumulativeSeries,
   currentStreak,
+  effectiveTaskPoints,
+  potentialToday,
   totalPoints,
 } from "@/lib/vzlet/score";
 import { rankForPoints } from "@/lib/vzlet/rank";
@@ -52,8 +54,21 @@ export default function VzletProgress({
   const todayAllDone = todayTotal > 0 && todayDone === todayTotal;
 
   const committed = totalPoints(days);
+  const taskPoints = (t: VzletTask) =>
+    effectiveTaskPoints(localDateStr(new Date(t.created_at)), t.for_date, t.difficulty);
+  const todayDifficultySum = todayTasks.reduce(
+    (sum, t) => sum + taskPoints(t),
+    0
+  );
+  const todayDoneDifficultySum = todayTasks
+    .filter((t) => t.done)
+    .reduce((sum, t) => sum + taskPoints(t), 0);
   const todayBanked =
-    todayTotal > 0 ? (todayAllDone ? 5 + todayDone : todayDone) : 0;
+    todayTotal === 0
+      ? 0
+      : todayAllDone
+        ? potentialToday(todayTotal, todayDifficultySum)
+        : todayDoneDifficultySum;
   const currentTotal = committed + todayBanked;
 
   const rank = rankForPoints(currentTotal);

@@ -5,6 +5,60 @@ function dayDiff(a: string, b: string): number {
   return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
 }
 
+/** `YYYY-MM-DD` iz lokalnega (ne UTC) datuma. */
+function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Ponedeljek tedna, ki vsebuje dani datum (lokalni čas, `YYYY-MM-DD`). */
+export function mondayOf(d: Date): string {
+  const wd = d.getDay(); // 0 = nedelja … 6 = sobota
+  const diff = wd === 0 ? -6 : 1 - wd;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diff);
+  return localDateStr(monday);
+}
+
+/** Vsota `points` od (vključno) danega datuma dalje. */
+export function weekPoints(
+  days: { day: string; points: number }[],
+  weekStartStr: string
+): number {
+  return days
+    .filter((d) => d.day >= weekStartStr)
+    .reduce((sum, d) => sum + d.points, 0);
+}
+
+/**
+ * Ali je bilo opravilo dodano isti dan, za katerega je bilo namenjeno
+ * (namesto vnaprej, npr. dan prej prek "Cilji za jutri"). `createdAtDateStr`
+ * in `forDateStr` sta oba `YYYY-MM-DD`; klicatelj poskrbi za pravo izpeljavo
+ * (lokalni čas na klientu, UTC na strežniku — glej klicna mesta).
+ */
+export function isSameDayAdded(
+  createdAtDateStr: string,
+  forDateStr: string
+): boolean {
+  return createdAtDateStr >= forDateStr;
+}
+
+/**
+ * Efektivna vrednost opravila za točkovanje: kasneje (isti dan) dodana
+ * opravila spodbujamo, da jih načrtujemo vnaprej — zato so vredna točno 1
+ * točko ne glede na oceno težavnosti; vnaprej načrtovana opravila štejejo
+ * po svoji oceni (`difficulty`, manjkajoča = 0).
+ */
+export function effectiveTaskPoints(
+  createdAtDateStr: string,
+  forDateStr: string,
+  difficulty: number | null
+): number {
+  return isSameDayAdded(createdAtDateStr, forDateStr) ? 1 : difficulty ?? 0;
+}
+
 /**
  * Točke za zaključen dan po pravilih Vzleta: uspešen dan (vsa opravila
  * opravljena) je vreden 50 + vsota težavnosti (`difficulty`) opravil tega
@@ -39,8 +93,8 @@ export function cumulativeSeries(days: VzletDay[]): CumulativePoint[] {
   });
 }
 
-/** Skupno število točk. */
-export function totalPoints(days: VzletDay[]): number {
+/** Skupno število točk (sprejme tudi "tanjšo" obliko, le `{ points }`). */
+export function totalPoints(days: { points: number }[]): number {
   return days.reduce((sum, d) => sum + d.points, 0);
 }
 

@@ -12,7 +12,12 @@ import {
   toggleVzletTaskAction,
 } from "@/actions/vzlet";
 import { celebrationMessage, pluralOpravki } from "@/lib/vzlet/messages";
-import { currentStreak, potentialToday } from "@/lib/vzlet/score";
+import {
+  currentStreak,
+  effectiveTaskPoints,
+  isSameDayAdded,
+  potentialToday,
+} from "@/lib/vzlet/score";
 import Button from "@/components/ui/Button";
 import Menu, { MenuItem } from "@/components/ui/Menu";
 import PromptDialog from "@/components/ui/PromptDialog";
@@ -46,9 +51,21 @@ function difficultyBadgeClass(value: number): string {
   return "bg-red-200 text-red-800 dark:bg-red-900 dark:text-red-200";
 }
 
-/** Vsota težavnosti opravil (manjkajoča ocena šteje kot 0). */
+/**
+ * Vsota efektivnih točk opravil — kasneje (isti dan) dodana opravila štejejo
+ * kot 1 (spodbuda za načrtovanje vnaprej), sicer po oceni težavnosti.
+ */
 function difficultySum(tasks: VzletTask[]): number {
-  return tasks.reduce((sum, t) => sum + (t.difficulty ?? 0), 0);
+  return tasks.reduce(
+    (sum, t) =>
+      sum +
+      effectiveTaskPoints(
+        localDateStr(new Date(t.created_at)),
+        t.for_date,
+        t.difficulty
+      ),
+    0
+  );
 }
 
 /**
@@ -231,6 +248,16 @@ export default function VzletBoard({
       return a.position - b.position;
     });
 
+  // Naloge, dodane isti dan (za razliko od tistih, ki so bile za danes
+  // načrtovane že prej), gredo pod ločen naslov "Kasnejše naloge" — in so
+  // pri točkovanju vredne točno 1 točko (glej `effectiveTaskPoints`).
+  const earlierTodayTasks = todayTasks.filter(
+    (t) => !isSameDayAdded(localDateStr(new Date(t.created_at)), t.for_date)
+  );
+  const laterTodayTasks = todayTasks.filter((t) =>
+    isSameDayAdded(localDateStr(new Date(t.created_at)), t.for_date)
+  );
+
   const tomorrowTasks = tasks
     .filter((t) => t.for_date === tomorrowStr)
     .sort((a, b) => a.position - b.position);
@@ -344,7 +371,7 @@ export default function VzletBoard({
         {/* opozorilo ob preveč opravkih (le dokler je še kaj za narediti) */}
         {remaining > 0 && totalToday >= 5 ? (
           <p className="text-sm text-amber-600 dark:text-amber-400">
-            Pet ali več za en dan — kar ne narediš danes, te čaka jutri.
+            Pet ali več za en dan — kar ne narediš danes, te čaka jutri + kazenska naloga.
           </p>
         ) : remaining > 0 && totalToday >= 3 ? (
           <p className="text-sm text-amber-600 dark:text-amber-400">
@@ -368,19 +395,54 @@ export default function VzletBoard({
             </p>
           </div>
         ) : (
-          <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
-            {todayTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                showCheckbox
-                onToggle={() => toggle(task)}
-                onRename={() => setRename({ id: task.id, value: task.title })}
-                onRate={() => setRateDifficulty({ id: task.id })}
-                onDelete={() => handleDelete(task.id)}
-              />
-            ))}
-          </ul>
+          <>
+            {earlierTodayTasks.length > 0 && (
+              <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+                {earlierTodayTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    showCheckbox
+                    onToggle={() => toggle(task)}
+                    onRename={() =>
+                      setRename({ id: task.id, value: task.title })
+                    }
+                    onRate={() => setRateDifficulty({ id: task.id })}
+                    onDelete={() => handleDelete(task.id)}
+                  />
+                ))}
+              </ul>
+            )}
+
+            {laterTodayTasks.length > 0 && (
+              <div
+                className={clsx(
+                  "flex flex-shrink-0 flex-col gap-2",
+                  earlierTodayTasks.length > 0 &&
+                    "border-t border-gray-200 pt-4 dark:border-gray-800"
+                )}
+              >
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                  Kasnejše naloge
+                </h2>
+                <ul className="space-y-2">
+                  {laterTodayTasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      showCheckbox
+                      onToggle={() => toggle(task)}
+                      onRename={() =>
+                        setRename({ id: task.id, value: task.title })
+                      }
+                      onRate={() => setRateDifficulty({ id: task.id })}
+                      onDelete={() => handleDelete(task.id)}
+                    />
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
         )}
 
         {/* Misija jutri — zložljiv predogled jutrišnjih ciljev */}

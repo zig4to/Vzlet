@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "@/lib/utils/clsx";
-import { IconRocket, IconTrendingUp } from "@/components/ui/icons";
+import { IconRocket, IconTrendingUp, IconTrophy } from "@/components/ui/icons";
 
 const TABS = [
   { href: "/", label: "Misije", icon: <IconRocket /> },
   { href: "/napredek", label: "Napredek", icon: <IconTrendingUp /> },
+  { href: "/tabla", label: "Tabla", icon: <IconTrophy /> },
 ];
 
 export default function VzletTabs() {

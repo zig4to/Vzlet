@@ -13,12 +13,12 @@ export type Rank = {
 const TIERS: { name: string; emoji: string; min: number }[] = [
   { name: "Pod gladino", emoji: "🌊", min: -Infinity },
   { name: "Na rampi", emoji: "🛫", min: 0 },
-  { name: "Vzlet", emoji: "🚀", min: 20 },
-  { name: "Stratosfera", emoji: "🌤️", min: 50 },
-  { name: "Orbita", emoji: "🛰️", min: 100 },
-  { name: "Luna", emoji: "🌙", min: 200 },
-  { name: "Mars", emoji: "🔴", min: 350 },
-  { name: "Globoki vesolje", emoji: "✨", min: 600 },
+  { name: "Vzlet", emoji: "🚀", min: 200 },
+  { name: "Stratosfera", emoji: "🌤️", min: 500 },
+  { name: "Orbita", emoji: "🛰️", min: 1000 },
+  { name: "Luna", emoji: "🌙", min: 2000 },
+  { name: "Mars", emoji: "🔴", min: 3500 },
+  { name: "Globoki vesolje", emoji: "✨", min: 6000 },
 ];
 
 export function rankForPoints(total: number): Rank {
