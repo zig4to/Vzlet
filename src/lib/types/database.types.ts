@@ -17,6 +17,7 @@ export type Database = {
           done_at: string | null;
           position: number;
           is_penalty: boolean;
+          difficulty: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -29,6 +30,7 @@ export type Database = {
           done_at?: string | null;
           position?: number;
           is_penalty?: boolean;
+          difficulty?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -41,6 +43,7 @@ export type Database = {
           done_at?: string | null;
           position?: number;
           is_penalty?: boolean;
+          difficulty?: number | null;
           created_at?: string;
           updated_at?: string;
         };

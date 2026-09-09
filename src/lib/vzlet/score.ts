@@ -5,15 +5,23 @@ function dayDiff(a: string, b: string): number {
   return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
 }
 
-/** Točke za zaključen dan po pravilih Vzleta. */
-export function dayPoints(tasksTotal: number, tasksDone: number): number {
+/**
+ * Točke za zaključen dan po pravilih Vzleta: uspešen dan (vsa opravila
+ * opravljena) je vreden 50 + vsota težavnosti (`difficulty`) opravil tega
+ * dne; zamujen dan (eno ali več neopravljenih) odbije -500.
+ */
+export function dayPoints(
+  tasksTotal: number,
+  tasksDone: number,
+  difficultySum: number
+): number {
   if (tasksTotal <= 0) return 0;
-  return tasksDone === tasksTotal ? 5 + tasksDone : -50;
+  return tasksDone === tasksTotal ? 50 + difficultySum : -500;
 }
 
-/** Potencial današnjega dne, če dokončaš vse (`5 + št. opravkov`). */
-export function potentialToday(tasksTotal: number): number {
-  return tasksTotal > 0 ? 5 + tasksTotal : 0;
+/** Potencial današnjega dne, če dokončaš vse (`50 + vsota težavnosti`). */
+export function potentialToday(tasksTotal: number, difficultySum: number): number {
+  return tasksTotal > 0 ? 50 + difficultySum : 0;
 }
 
 export type CumulativePoint = {
