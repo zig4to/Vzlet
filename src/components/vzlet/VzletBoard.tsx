@@ -32,7 +32,6 @@ import {
 import Fireworks from "@/components/vzlet/Fireworks";
 import Crash from "@/components/vzlet/Crash";
 import VzletPlanDialog from "@/components/vzlet/VzletPlanDialog";
-import OthersGoals from "@/components/vzlet/OthersGoals";
 
 function localDateStr(d: Date): string {
   const y = d.getFullYear();
@@ -421,7 +420,6 @@ export default function VzletBoard({
               <IconPlus />
               Cilji za jutri
             </Button>
-            <OthersGoals />
           </div>
         </div>
 

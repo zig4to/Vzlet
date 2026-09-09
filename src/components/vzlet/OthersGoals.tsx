@@ -7,7 +7,6 @@ import {
   getVzletSharedTasksAction,
   getVzletSharersAction,
 } from "@/actions/vzlet";
-import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { IconCheck, IconUsers } from "@/components/ui/icons";
 
@@ -66,15 +65,16 @@ export default function OthersGoals() {
 
   return (
     <div className="relative" ref={rootRef}>
-      <Button
-        variant="secondary"
+      <button
+        type="button"
         onClick={toggle}
         aria-expanded={open}
         aria-label="Cilji drugih"
         title="Cilji drugih"
+        className="flex rounded-md border border-gray-300 bg-white p-2 text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
       >
-        <IconUsers className="h-5 w-5" />
-      </Button>
+        <IconUsers className="h-4 w-4" />
+      </button>
 
       {open && (
         <div className="absolute right-0 z-30 mt-1 max-h-72 w-56 overflow-y-auto rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:shadow-black/40">
