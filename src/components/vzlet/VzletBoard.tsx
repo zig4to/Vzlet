@@ -175,14 +175,16 @@ function TaskCard({
             >
               Preimenuj
             </MenuItem>
-            {task.difficulty == null && !isLater && (
+            {!isLater && (
               <MenuItem
                 onClick={() => {
                   close();
                   onRate();
                 }}
               >
-                Oceni težavnost
+                {task.difficulty == null
+                  ? "Oceni težavnost"
+                  : `Spremeni oceno (${task.difficulty}/10)`}
               </MenuItem>
             )}
             <MenuItem
@@ -213,9 +215,10 @@ export default function VzletBoard({
   const [rename, setRename] = useState<{ id: string; value: string } | null>(
     null
   );
-  const [rateDifficulty, setRateDifficulty] = useState<{ id: string } | null>(
-    null
-  );
+  const [rateDifficulty, setRateDifficulty] = useState<{
+    id: string;
+    value: string;
+  } | null>(null);
   const [tomorrowOpen, setTomorrowOpen] = useState(true);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
   const [burst, setBurst] = useState<{ id: number; big: boolean } | null>(null);
@@ -368,7 +371,12 @@ export default function VzletBoard({
             showCheckbox
             onToggle={() => toggle(task)}
             onRename={() => setRename({ id: task.id, value: task.title })}
-            onRate={() => setRateDifficulty({ id: task.id })}
+            onRate={() =>
+              setRateDifficulty({
+                id: task.id,
+                value: task.difficulty != null ? String(task.difficulty) : "",
+              })
+            }
             onDelete={() => handleDelete(task.id)}
           />
         ))}
@@ -392,7 +400,12 @@ export default function VzletBoard({
             showCheckbox
             onToggle={() => toggle(task)}
             onRename={() => setRename({ id: task.id, value: task.title })}
-            onRate={() => setRateDifficulty({ id: task.id })}
+            onRate={() =>
+              setRateDifficulty({
+                id: task.id,
+                value: task.difficulty != null ? String(task.difficulty) : "",
+              })
+            }
             onDelete={() => handleDelete(task.id)}
           />
         ))}
@@ -529,7 +542,12 @@ export default function VzletBoard({
                     task={task}
                     showCheckbox={false}
                     onRename={() => setRename({ id: task.id, value: task.title })}
-                    onRate={() => setRateDifficulty({ id: task.id })}
+                    onRate={() =>
+              setRateDifficulty({
+                id: task.id,
+                value: task.difficulty != null ? String(task.difficulty) : "",
+              })
+            }
                     onDelete={() => handleDelete(task.id)}
                   />
                 ))}
@@ -598,6 +616,7 @@ export default function VzletBoard({
         title="Oceni težavnost"
         label="Težavnost (1–10)"
         placeholder="npr. 5"
+        initialValue={rateDifficulty?.value ?? ""}
         submitLabel="Shrani"
         onSubmit={async (value) => {
           if (!rateDifficulty) return;
