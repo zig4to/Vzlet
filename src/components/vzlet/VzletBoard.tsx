@@ -184,7 +184,7 @@ function TaskCard({
               >
                 {task.difficulty == null
                   ? "Oceni težavnost"
-                  : `Spremeni oceno (${task.difficulty}/10)`}
+                  : "Spremeni oceno"}
               </MenuItem>
             )}
             <MenuItem
