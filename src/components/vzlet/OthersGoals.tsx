@@ -17,8 +17,48 @@ function localDateStr(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+// Bralni seznam deljenih opravil (za en dan) v pogovornem oknu „Cilji drugih“.
+function SharedTaskList({ items }: { items: VzletSharedTask[] }) {
+  return (
+    <ul className="space-y-2">
+      {items.map((t) => (
+        <li
+          key={t.id}
+          className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2.5 dark:border-gray-800"
+        >
+          <span
+            className={clsx(
+              "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2",
+              t.done
+                ? "border-blue-600 bg-blue-600 text-white"
+                : "border-gray-300 text-transparent dark:border-gray-600"
+            )}
+          >
+            <IconCheck className="h-3 w-3" />
+          </span>
+          <span
+            className={clsx(
+              "min-w-0 flex-1 text-sm",
+              t.done
+                ? "text-gray-400 line-through dark:text-gray-500"
+                : "text-gray-900 dark:text-gray-100"
+            )}
+          >
+            {t.title}
+          </span>
+          {t.is_penalty && (
+            <span className="flex-shrink-0 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+              kazen
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 // Gumb „Cilji drugih“ z dropdownom oseb, ki delijo cilje; ob izbiri se v
-// pogovornem oknu pokažejo njihovi današnji cilji (samo za branje).
+// pogovornem oknu pokažejo njihovi cilji za danes in jutri (samo za branje).
 export default function OthersGoals() {
   const [open, setOpen] = useState(false);
   const [sharers, setSharers] = useState<VzletSharer[] | null>(null);
@@ -60,8 +100,13 @@ export default function OthersGoals() {
       .catch(() => setTasks([]));
   };
 
-  const todayStr = localDateStr(new Date());
+  const now = new Date();
+  const todayStr = localDateStr(now);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = localDateStr(tomorrow);
   const todayTasks = (tasks ?? []).filter((t) => t.for_date === todayStr);
+  const tomorrowTasks = (tasks ?? []).filter((t) => t.for_date === tomorrowStr);
 
   return (
     <div className="relative" ref={rootRef}>
@@ -107,49 +152,37 @@ export default function OthersGoals() {
       <Modal
         open={viewing !== null}
         onClose={() => setViewing(null)}
-        title={viewing ? `Cilji za danes · ${viewing.name}` : ""}
+        title={viewing ? `Cilji · ${viewing.name}` : ""}
       >
         {tasks === null ? (
           <p className="py-6 text-center text-sm text-gray-400">Nalagam …</p>
-        ) : todayTasks.length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-            Za danes še nima ciljev.
-          </p>
         ) : (
-          <ul className="space-y-2">
-            {todayTasks.map((t) => (
-              <li
-                key={t.id}
-                className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2.5 dark:border-gray-800"
-              >
-                <span
-                  className={clsx(
-                    "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2",
-                    t.done
-                      ? "border-blue-600 bg-blue-600 text-white"
-                      : "border-gray-300 text-transparent dark:border-gray-600"
-                  )}
-                >
-                  <IconCheck className="h-3 w-3" />
-                </span>
-                <span
-                  className={clsx(
-                    "min-w-0 flex-1 text-sm",
-                    t.done
-                      ? "text-gray-400 line-through dark:text-gray-500"
-                      : "text-gray-900 dark:text-gray-100"
-                  )}
-                >
-                  {t.title}
-                </span>
-                {t.is_penalty && (
-                  <span className="flex-shrink-0 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                    kazen
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-5">
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                Danes
+              </h3>
+              {todayTasks.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Za danes še nima ciljev.
+                </p>
+              ) : (
+                <SharedTaskList items={todayTasks} />
+              )}
+            </section>
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                Jutri
+              </h3>
+              {tomorrowTasks.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Za jutri še nima ciljev.
+                </p>
+              ) : (
+                <SharedTaskList items={tomorrowTasks} />
+              )}
+            </section>
+          </div>
         )}
       </Modal>
     </div>

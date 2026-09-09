@@ -124,8 +124,8 @@ export async function getVzletSharers(
 }
 
 /**
- * Opravila izbrane osebe, ki deli cilje. RLS omeji nabor na tekoče dni;
- * klient prikaže samo svoj lokalni „danes“.
+ * Opravila izbrane osebe, ki deli cilje. RLS omeji nabor na tekoče dni
+ * (včeraj–jutri po UTC); klient prikaže svoj lokalni „danes“ in „jutri“.
  */
 export async function getVzletSharedTasks(
   supabase: TypedSupabaseClient,
