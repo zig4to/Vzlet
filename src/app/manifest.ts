@@ -5,6 +5,7 @@ import type { MetadataRoute } from "next";
 // brskalniki jo sprejmejo kot 192/512 prek sizes: "any".
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
     name: "Vzlet — dnevni cilji",
     short_name: "Vzlet",
     description: "Dnevni fokus na najpomembnejša opravila, točke in napredek.",
