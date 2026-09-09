@@ -21,7 +21,7 @@ import IntroDialog from "@/components/vzlet/IntroDialog";
 
 // Meni aplikacije Vzlet v zgornji vrstici: navigacija, deljenje ciljev,
 // predstavitev, nastavitve in odjava.
-export default function VzletMenu() {
+export default function VzletMenu({ email }: { email: string | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(false);
@@ -144,6 +144,12 @@ export default function VzletMenu() {
           </button>
 
           <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+
+          {email && (
+            <p className="truncate px-2 py-1 text-xs text-gray-400 dark:text-gray-500">
+              Prijavljen kot {email}
+            </p>
+          )}
 
           <form action={logoutAction}>
             <button

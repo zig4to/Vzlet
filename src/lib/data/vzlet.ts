@@ -22,13 +22,22 @@ type TypedSupabaseClient = SupabaseClient<Database>;
 export async function getVzletTasks(
   supabase: TypedSupabaseClient
 ): Promise<VzletTask[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
   const sinceDate = new Date(Date.now() - 3 * 86_400_000)
     .toISOString()
     .slice(0, 10);
 
+  // Eksplicitni filter po user_id je nujen — RLS sama po sebi tu ne
+  // zadostuje, ker "shared" police (za Tabla/Cilji drugih) dovolijo tudi
+  // branje opravil drugih uporabnikov, ki delijo cilje.
   const { data, error } = await supabase
     .from("pisi_vzlet_tasks")
     .select("*")
+    .eq("user_id", user.id)
     .or(`done.eq.false,for_date.gte.${sinceDate}`)
     .order("for_date", { ascending: true })
     .order("done", { ascending: true })
@@ -42,9 +51,16 @@ export async function getVzletTasks(
 export async function getVzletDays(
   supabase: TypedSupabaseClient
 ): Promise<VzletDay[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  // Glej opombo v getVzletTasks — enak razlog za eksplicitni user_id filter.
   const { data, error } = await supabase
     .from("pisi_vzlet_days")
     .select("*")
+    .eq("user_id", user.id)
     .order("day", { ascending: true });
 
   if (error) throw error;

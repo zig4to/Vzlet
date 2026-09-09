@@ -22,10 +22,19 @@ const MAX_PENALTY_PER_SETTLE = 5;
 
 type Supa = Awaited<ReturnType<typeof createClient>>;
 
-async function nextVzletPosition(supabase: Supa, forDate: string): Promise<number> {
+// Eksplicitni user_id filter je nujen povsod, kjer beremo pisi_vzlet_tasks/
+// pisi_vzlet_days brez omejitve na en id — RLS sama po sebi ne zadostuje,
+// ker "shared" police (za Tabla/Cilji drugih) dovolijo tudi branje podatkov
+// drugih uporabnikov, ki delijo cilje (glej tudi src/lib/data/vzlet.ts).
+async function nextVzletPosition(
+  supabase: Supa,
+  userId: string,
+  forDate: string
+): Promise<number> {
   const { data } = await supabase
     .from("pisi_vzlet_tasks")
     .select("position")
+    .eq("user_id", userId)
     .eq("for_date", forDate)
     .order("position", { ascending: false })
     .limit(1)
@@ -42,7 +51,11 @@ export async function addVzletTaskAction(
   if (!DATE_RE.test(forDate)) return { error: "Neveljaven datum." };
 
   const supabase = await createClient();
-  const position = await nextVzletPosition(supabase, forDate);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Nisi prijavljen." };
+  const position = await nextVzletPosition(supabase, user.id, forDate);
 
   // Dodatne (isti dan dodane) naloge so vedno vredne 1 bonus točko — AI
   // ocene zanje sploh ne kličemo, ker je pri točkovanju ne uporabimo.
@@ -168,8 +181,13 @@ export async function settleVzletAction(
     supabase
       .from("pisi_vzlet_tasks")
       .select("title, for_date, done, is_penalty, difficulty, created_at")
+      .eq("user_id", user.id)
       .lt("for_date", todayStr),
-    supabase.from("pisi_vzlet_days").select("day, all_done").lt("day", todayStr),
+    supabase
+      .from("pisi_vzlet_days")
+      .select("day, all_done")
+      .eq("user_id", user.id)
+      .lt("day", todayStr),
   ]);
 
   const byDay = new Map<string, NonNullable<typeof pastTasks>>();
@@ -227,7 +245,7 @@ export async function settleVzletAction(
       Math.min(missedDays, MAX_PENALTY_PER_SETTLE)
     );
     if (titles.length > 0) {
-      const base = await nextVzletPosition(supabase, todayStr);
+      const base = await nextVzletPosition(supabase, user.id, todayStr);
       await supabase.from("pisi_vzlet_tasks").insert(
         titles.map((title, i) => ({
           title,
@@ -244,6 +262,7 @@ export async function settleVzletAction(
   await supabase
     .from("pisi_vzlet_tasks")
     .update({ for_date: todayStr })
+    .eq("user_id", user.id)
     .eq("done", false)
     .lt("for_date", todayStr);
 
@@ -270,6 +289,7 @@ export async function syncTodayPointsAction(todayStr: string): Promise<void> {
   const { data: todayTasks } = await supabase
     .from("pisi_vzlet_tasks")
     .select("title, done, created_at, for_date, is_penalty, difficulty")
+    .eq("user_id", user.id)
     .eq("for_date", todayStr);
 
   if (!todayTasks || todayTasks.length === 0) {
