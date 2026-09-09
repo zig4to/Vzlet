@@ -197,7 +197,7 @@ export async function settleVzletAction(
     byDay.set(t.for_date, arr);
   }
   // Dnevi, ki so bili že v celoti (živo) zaključeni, se ne dotikamo — le
-  // manjkajoči ali nedokončani (ostali `!all_done`) dobijo/posodobijo -500.
+  // manjkajoči ali nedokončani (ostali `!all_done`) dobijo/posodobijo -125.
   const alreadyFinal = new Set(
     (settledDays ?? []).filter((d) => d.all_done).map((d) => d.day)
   );
@@ -215,7 +215,7 @@ export async function settleVzletAction(
   for (const [day, dayTasks] of byDay) {
     if (dayTasks.length < 1 || alreadyFinal.has(day)) continue;
     const live = liveDayPoints(dayTasks);
-    const points = live.allDone ? live.points : -500;
+    const points = live.allDone ? live.points : -125;
     rows.push({
       user_id: user.id,
       day,

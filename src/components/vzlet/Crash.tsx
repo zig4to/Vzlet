@@ -10,7 +10,7 @@ type CrashProps = {
 
 /**
  * „Crash“ ob zamujenem dnevu: rdeč blisk + tresljaj zaslona + padajoča raketa
- * z delci navzdol + sporočilo „−50 · zamujen dan“. Sam se odmontira po ~2 s.
+ * z delci navzdol + sporočilo „−125 · zamujen dan“. Sam se odmontira po ~2 s.
  * Spoštuje `prefers-reduced-motion`.
  */
 export default function Crash({ count, onDone }: CrashProps) {
@@ -134,7 +134,9 @@ export default function Crash({ count, onDone }: CrashProps) {
   if (!visible) return null;
 
   const label =
-    count > 1 ? `−${50 * count} · ${count} zamujeni dnevi` : "−50 · zamujen dan";
+    count > 1
+      ? `−${125 * count} · ${count} zamujeni dnevi`
+      : "−125 · zamujen dan";
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[70]">

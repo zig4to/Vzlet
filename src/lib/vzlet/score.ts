@@ -69,13 +69,13 @@ export type LiveDayPoints = {
 /**
  * Živa (sprotna) vrednost točk za dan, ki še traja ali čaka na poravnavo.
  * Opravila, načrtovana vnaprej ("core", glej `isSameDayAdded`), skupaj z
- * osnovo 50 točk prispevajo, TAKOJ KO JE CORE SEZNAM V CELOTI DOKONČAN —
+ * osnovo 10 točk prispevajo, TAKOJ KO JE CORE SEZNAM V CELOTI DOKONČAN —
  * neodvisno od dodatnih (isti dan dodanih) opravil. Dodatne naloge so samo
  * bonus: vsaka prispeva +1 takoj, ko je posamično opravljena, ne glede na
  * stanje core seznama. Brez core opravil dan ne more biti "uspešen"
  * (`allDone = false`, glej spodaj). Uporablja se tako za živo sprotno stanje
  * danes (`syncTodayPointsAction`) kot za poravnavo preteklih dni
- * (`settleVzletAction`, kjer se `points` ob `!allDone` nadomesti z -500).
+ * (`settleVzletAction`, kjer se `points` ob `!allDone` nadomesti z -125).
  */
 export function liveDayPoints(
   tasks: {
@@ -104,7 +104,7 @@ export function liveDayPoints(
     (sum, t) => sum + (t.difficulty ?? 0),
     0
   );
-  const corePoints = coreAllDone ? 50 + coreDifficultySum : 0;
+  const corePoints = coreAllDone ? 10 + coreDifficultySum : 0;
   // Dodatne naloge: vsaka dokončana doda točno 1 bonus točko, sproti,
   // neodvisno od core seznama.
   const laterPoints = later.filter((t) => t.done).length;
@@ -117,9 +117,9 @@ export function liveDayPoints(
   };
 }
 
-/** Potencial današnjega dne, če dokončaš vse (`50 + vsota težavnosti`). */
+/** Potencial današnjega dne, če dokončaš vse (`10 + vsota težavnosti`). */
 export function potentialToday(tasksTotal: number, difficultySum: number): number {
-  return tasksTotal > 0 ? 50 + difficultySum : 0;
+  return tasksTotal > 0 ? 10 + difficultySum : 0;
 }
 
 export type CumulativePoint = {

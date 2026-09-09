@@ -82,12 +82,12 @@ sinhronizacija kot poravnava preteklih dni):
 - Opravilo je **"core"** (načrtovano vnaprej) ali **"kasneje dodano"**
   (`isSameDayAdded`: `created_at`-datum >= `for_date`, npr. dodano na hitro
   isti dan namesto dan prej prek "Cilji za jutri").
-- Osnova **50 + vsota težavnosti core opravil** se prišteje šele, ko so
+- Osnova **10 + vsota težavnosti core opravil** se prišteje šele, ko so
   **čisto vsa** opravila tega dne (core in kasneje dodana) odkljukana.
 - **Kasneje dodana opravila prispevajo +1 vsako posebej, takoj ko so
   odkljukana** — neodvisno od tega, ali je vse ostalo že opravljeno
   (spodbuja načrtovanje dan prej namesto dodajanja na hitro).
-- Zamujen (pretekel, nedokončan) dan je vedno vreden -500 — to se ugotovi
+- Zamujen (pretekel, nedokončan) dan je vedno vreden -125 — to se ugotovi
   šele ob poravnavi (glej spodaj), nikoli živo med dnevom.
 
 **Sprotna sinhronizacija** (`syncTodayPointsAction` v `src/actions/
@@ -101,15 +101,16 @@ brez čakanja na jutri.
 `VzletBoard.tsx`): ker lahko za "danes" že obstaja živo sinhronizirana
 vrstica, poravnava dneve **upserta**, ne inserta, in dan preskoči le, če že
 ima `all_done = true` (torej je bil živo dokončan) — sicer (manjka vrstica
-ali `all_done = false`) jo prepiše na -500. Po poravnavi doda kazenska
+ali `all_done = false`) jo prepiše na -125. Po poravnavi doda kazenska
 opravila iz `pisi_vzlet_penalty_pool` za zamujene dni in prenese
 neopravljena opravila na `todayStr`.
 
 **Rangi** (`rank.ts`, `TIERS`) in **tedenska lestvica "Tabla"**
 (`getVzletLeaderboard` v `data/vzlet.ts`, `mondayOf`/`weekPoints` v
 `score.ts`) so izpeljani nad istimi `pisi_vzlet_days.points` vrednostmi —
-prag rangov je bil ročno umerjen na trenutno lestvico točk (50/-500
-osnova); če se osnovna formula še kdaj spremeni, jih je treba preskalirati.
+prag rangov je bil ročno umerjen na staro lestvico točk (50/-500 osnova) in
+NI bil preskaliran ob prehodu na 10/-125 osnovo; ob naslednji spremembi
+formule jih je treba ponovno umeriti.
 
 ### AI ocena težavnosti (`src/lib/ai/`)
 
