@@ -8,6 +8,7 @@ import {
   getVzletSharers,
 } from "@/lib/data/vzlet";
 import { dayPoints } from "@/lib/vzlet/score";
+import { rateTaskDifficulty } from "@/lib/ai/difficulty";
 import type {
   VzletSharedTask,
   VzletSharer,
@@ -41,12 +42,38 @@ export async function addVzletTaskAction(
 
   const supabase = await createClient();
   const position = await nextVzletPosition(supabase, forDate);
+  const difficulty = await rateTaskDifficulty(clean);
 
   const { error } = await supabase
     .from("pisi_vzlet_tasks")
-    .insert({ title: clean.slice(0, 500), for_date: forDate, position });
+    .insert({
+      title: clean.slice(0, 500),
+      for_date: forDate,
+      position,
+      difficulty,
+    });
 
   if (error) return { error: "Napaka pri dodajanju: " + error.message };
+
+  revalidatePath("/", "layout");
+  return {};
+}
+
+/** Ročni vnos težavnosti, kadar AI ocena ob dodajanju ni uspela. */
+export async function setVzletTaskDifficultyAction(
+  id: string,
+  value: number
+): Promise<VzletFormState> {
+  if (!Number.isInteger(value) || value < 1 || value > 10) {
+    return { error: "Težavnost mora biti celo število med 1 in 10." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("pisi_vzlet_tasks")
+    .update({ difficulty: value })
+    .eq("id", id);
+
+  if (error) return { error: "Napaka pri shranjevanju: " + error.message };
 
   revalidatePath("/", "layout");
   return {};
@@ -106,16 +133,20 @@ export async function settleVzletAction(
   const [{ data: pastTasks }, { data: settledDays }] = await Promise.all([
     supabase
       .from("pisi_vzlet_tasks")
-      .select("for_date, done")
+      .select("for_date, done, difficulty")
       .lt("for_date", todayStr),
     supabase.from("pisi_vzlet_days").select("day").lt("day", todayStr),
   ]);
 
-  const byDay = new Map<string, { total: number; done: number }>();
+  const byDay = new Map<
+    string,
+    { total: number; done: number; difficultySum: number }
+  >();
   for (const t of pastTasks ?? []) {
-    const e = byDay.get(t.for_date) ?? { total: 0, done: 0 };
+    const e = byDay.get(t.for_date) ?? { total: 0, done: 0, difficultySum: 0 };
     e.total += 1;
     if (t.done) e.done += 1;
+    e.difficultySum += t.difficulty ?? 0;
     byDay.set(t.for_date, e);
   }
   const already = new Set((settledDays ?? []).map((d) => d.day));
@@ -128,10 +159,10 @@ export async function settleVzletAction(
     all_done: boolean;
   }[] = [];
   let missedDays = 0;
-  for (const [day, { total, done }] of byDay) {
+  for (const [day, { total, done, difficultySum }] of byDay) {
     if (total < 1 || already.has(day)) continue;
     const allDone = done === total;
-    const points = dayPoints(total, done);
+    const points = dayPoints(total, done, difficultySum);
     rows.push({
       day,
       points,

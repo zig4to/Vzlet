@@ -7,15 +7,22 @@ import {
   addVzletTaskAction,
   deleteVzletTaskAction,
   renameVzletTaskAction,
+  setVzletTaskDifficultyAction,
   settleVzletAction,
   toggleVzletTaskAction,
 } from "@/actions/vzlet";
 import { celebrationMessage, pluralOpravki } from "@/lib/vzlet/messages";
-import { currentStreak } from "@/lib/vzlet/score";
+import { currentStreak, potentialToday } from "@/lib/vzlet/score";
 import Button from "@/components/ui/Button";
 import Menu, { MenuItem } from "@/components/ui/Menu";
 import PromptDialog from "@/components/ui/PromptDialog";
-import { IconCheck, IconFlame, IconPlus, IconRocket } from "@/components/ui/icons";
+import {
+  IconCheck,
+  IconChevronDown,
+  IconFlame,
+  IconPlus,
+  IconRocket,
+} from "@/components/ui/icons";
 import Fireworks from "@/components/vzlet/Fireworks";
 import Crash from "@/components/vzlet/Crash";
 import VzletPlanDialog from "@/components/vzlet/VzletPlanDialog";
@@ -26,6 +33,140 @@ function localDateStr(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+/** Barva značka glede na težavnost: zelena=lahko, rumena=srednje, rdeča=težko. */
+function difficultyBadgeClass(value: number): string {
+  if (value <= 3) {
+    return "bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-200";
+  }
+  if (value <= 6) {
+    return "bg-amber-200 text-amber-800 dark:bg-amber-900 dark:text-amber-200";
+  }
+  return "bg-red-200 text-red-800 dark:bg-red-900 dark:text-red-200";
+}
+
+/** Vsota težavnosti opravil (manjkajoča ocena šteje kot 0). */
+function difficultySum(tasks: VzletTask[]): number {
+  return tasks.reduce((sum, t) => sum + (t.difficulty ?? 0), 0);
+}
+
+/**
+ * Kartica opravila — skupna za današnji seznam (z možnostjo odkljukanja) in
+ * jutrišnjo "Misijo" (brez kljukice, dokler dan ne pride na vrsto).
+ */
+function TaskCard({
+  task,
+  showCheckbox,
+  onToggle,
+  onRename,
+  onRate,
+  onDelete,
+}: {
+  task: VzletTask;
+  showCheckbox: boolean;
+  onToggle?: () => void;
+  onRename: () => void;
+  onRate: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <li
+      className={clsx(
+        "group flex items-center gap-3 rounded-xl border px-4 py-3.5",
+        task.is_penalty
+          ? "border-amber-300 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/30"
+          : "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+      )}
+    >
+      {showCheckbox && (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={task.done}
+          aria-label={
+            task.done ? "Označi kot nedokončano" : "Označi kot opravljeno"
+          }
+          onClick={onToggle}
+          className={clsx(
+            "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border-2 transition-colors",
+            task.done
+              ? "border-blue-600 bg-blue-600 text-white"
+              : "border-gray-300 text-transparent hover:border-blue-500 dark:border-gray-600"
+          )}
+        >
+          <IconCheck className="h-4 w-4" />
+        </button>
+      )}
+      {showCheckbox ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          className={clsx(
+            "min-w-0 flex-1 text-left text-lg sm:text-xl",
+            task.done
+              ? "text-gray-400 line-through dark:text-gray-500"
+              : "text-gray-900 dark:text-gray-100"
+          )}
+        >
+          {task.title}
+        </button>
+      ) : (
+        <span className="min-w-0 flex-1 text-left text-lg text-gray-900 dark:text-gray-100 sm:text-xl">
+          {task.title}
+        </span>
+      )}
+      {task.is_penalty && (
+        <span className="flex-shrink-0 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+          kazen
+        </span>
+      )}
+      {task.difficulty != null && (
+        <span
+          title="AI ocena težavnosti"
+          className={clsx(
+            "flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold",
+            difficultyBadgeClass(task.difficulty)
+          )}
+        >
+          {task.difficulty}/10
+        </span>
+      )}
+      <Menu>
+        {(close) => (
+          <>
+            <MenuItem
+              onClick={() => {
+                close();
+                onRename();
+              }}
+            >
+              Preimenuj
+            </MenuItem>
+            {task.difficulty == null && (
+              <MenuItem
+                onClick={() => {
+                  close();
+                  onRate();
+                }}
+              >
+                Oceni težavnost
+              </MenuItem>
+            )}
+            <MenuItem
+              danger
+              onClick={() => {
+                close();
+                if (confirm(`Izbrišem opravilo „${task.title}“?`)) onDelete();
+              }}
+            >
+              Izbriši
+            </MenuItem>
+          </>
+        )}
+      </Menu>
+    </li>
+  );
 }
 
 export default function VzletBoard({
@@ -40,6 +181,10 @@ export default function VzletBoard({
   const [rename, setRename] = useState<{ id: string; value: string } | null>(
     null
   );
+  const [rateDifficulty, setRateDifficulty] = useState<{ id: string } | null>(
+    null
+  );
+  const [tomorrowOpen, setTomorrowOpen] = useState(true);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
   const [burst, setBurst] = useState<{ id: number; big: boolean } | null>(null);
   const [crash, setCrash] = useState<number | null>(null);
@@ -95,6 +240,7 @@ export default function VzletBoard({
   const remaining = totalToday - doneToday;
   const allDoneToday = totalToday > 0 && remaining === 0;
   const streakNow = currentStreak(days) + (allDoneToday ? 1 : 0);
+  const potentialPoints = potentialToday(totalToday, difficultySum(todayTasks));
 
   const toggle = (task: VzletTask) => {
     const next = !task.done;
@@ -172,14 +318,14 @@ export default function VzletBoard({
                 <span>
                   danes{" "}
                   <span className="font-semibold text-blue-600 dark:text-blue-400">
-                    +{5 + totalToday} točk
+                    +{potentialPoints} točk
                   </span>
                 </span>
               ) : (
                 <span>
                   danes{" "}
                   <span className="font-semibold text-blue-600 dark:text-blue-400">
-                    +{5 + totalToday} točk
+                    +{potentialPoints} točk
                   </span>
                   , če dokončaš vse
                 </span>
@@ -224,77 +370,56 @@ export default function VzletBoard({
         ) : (
           <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
             {todayTasks.map((task) => (
-              <li
+              <TaskCard
                 key={task.id}
-                className={clsx(
-                  "group flex items-center gap-3 rounded-xl border px-4 py-3.5",
-                  task.is_penalty
-                    ? "border-amber-300 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/30"
-                    : "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
-                )}
-              >
-                <button
-                  type="button"
-                  role="checkbox"
-                  aria-checked={task.done}
-                  aria-label={
-                    task.done ? "Označi kot nedokončano" : "Označi kot opravljeno"
-                  }
-                  onClick={() => toggle(task)}
-                  className={clsx(
-                    "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border-2 transition-colors",
-                    task.done
-                      ? "border-blue-600 bg-blue-600 text-white"
-                      : "border-gray-300 text-transparent hover:border-blue-500 dark:border-gray-600"
-                  )}
-                >
-                  <IconCheck className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggle(task)}
-                  className={clsx(
-                    "min-w-0 flex-1 text-left text-lg sm:text-xl",
-                    task.done
-                      ? "text-gray-400 line-through dark:text-gray-500"
-                      : "text-gray-900 dark:text-gray-100"
-                  )}
-                >
-                  {task.title}
-                </button>
-                {task.is_penalty && (
-                  <span className="flex-shrink-0 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                    kazen
-                  </span>
-                )}
-                <Menu>
-                  {(close) => (
-                    <>
-                      <MenuItem
-                        onClick={() => {
-                          close();
-                          setRename({ id: task.id, value: task.title });
-                        }}
-                      >
-                        Preimenuj
-                      </MenuItem>
-                      <MenuItem
-                        danger
-                        onClick={() => {
-                          close();
-                          if (confirm(`Izbrišem opravilo „${task.title}“?`)) {
-                            handleDelete(task.id);
-                          }
-                        }}
-                      >
-                        Izbriši
-                      </MenuItem>
-                    </>
-                  )}
-                </Menu>
-              </li>
+                task={task}
+                showCheckbox
+                onToggle={() => toggle(task)}
+                onRename={() => setRename({ id: task.id, value: task.title })}
+                onRate={() => setRateDifficulty({ id: task.id })}
+                onDelete={() => handleDelete(task.id)}
+              />
             ))}
           </ul>
+        )}
+
+        {/* Misija jutri — zložljiv predogled jutrišnjih ciljev */}
+        {tomorrowTasks.length > 0 && (
+          <div className="flex flex-shrink-0 flex-col gap-2 border-t border-gray-200 pt-4 dark:border-gray-800">
+            <button
+              type="button"
+              onClick={() => setTomorrowOpen((v) => !v)}
+              aria-expanded={tomorrowOpen}
+              className="flex items-center gap-2 text-left"
+            >
+              <IconChevronDown
+                className={clsx(
+                  "h-4 w-4 flex-shrink-0 text-gray-400 transition-transform",
+                  !tomorrowOpen && "-rotate-90"
+                )}
+              />
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                Misija jutri
+              </h2>
+              <span className="text-sm text-gray-400 dark:text-gray-500">
+                ({tomorrowTasks.length})
+              </span>
+            </button>
+            {tomorrowOpen && (
+              <ul className="space-y-2">
+                {tomorrowTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    showCheckbox={false}
+                    onRename={() => setRename({ id: task.id, value: task.title })}
+                    onRate={() => setRateDifficulty({ id: task.id })}
+                    onDelete={() => handleDelete(task.id)}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </div>
 
@@ -349,6 +474,22 @@ export default function VzletBoard({
         initialValue={rename?.value ?? ""}
         onSubmit={async (value) => {
           if (rename) await renameVzletTaskAction(rename.id, value);
+        }}
+      />
+      <PromptDialog
+        open={rateDifficulty !== null}
+        onClose={() => setRateDifficulty(null)}
+        title="Oceni težavnost"
+        label="Težavnost (1–10)"
+        placeholder="npr. 5"
+        submitLabel="Shrani"
+        onSubmit={async (value) => {
+          if (!rateDifficulty) return;
+          const n = Number(value);
+          if (!Number.isInteger(n)) {
+            return { error: "Vnesi celo število med 1 in 10." };
+          }
+          return setVzletTaskDifficultyAction(rateDifficulty.id, n);
         }}
       />
     </div>
