@@ -147,7 +147,7 @@ export default function VzletMenu({ email }: { email: string | null }) {
 
           {email && (
             <p className="truncate px-2 py-1 text-xs text-gray-400 dark:text-gray-500">
-              Prijavljen kot {email}
+              {email.split("@")[0]}
             </p>
           )}
 
