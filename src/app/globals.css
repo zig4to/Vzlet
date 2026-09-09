@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+/* Temni način krmili atribut `data-theme="dark"` na <html> (nastavi ga
+   ThemeScript pred prvim izrisom, glej src/lib/theme.ts). Ta varianta
+   omogoča `dark:` pomožne razrede po celi aplikaciji. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --background: #f9fafb; /* gray-50 */
+  --foreground: #171717;
+}
+
+[data-theme="dark"] {
+  --background: #030712; /* gray-950 */
+  --foreground: #ededed;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-rubik);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* ===== Vzlet — motivacijski popup z žarečo ognjeno obrobo ===== */
+@keyframes vzlet-toast-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes vzlet-fire {
+  0%,
+  100% {
+    border-color: #fb923c;
+    box-shadow:
+      0 0 4px 1px rgba(251, 146, 60, 0.95),
+      0 0 13px 3px rgba(249, 115, 22, 0.7),
+      0 0 24px 6px rgba(234, 88, 12, 0.4),
+      inset 0 0 9px rgba(251, 191, 36, 0.35);
+  }
+  25% {
+    border-color: #fde047;
+    box-shadow:
+      0 0 6px 1px rgba(253, 224, 71, 0.95),
+      0 0 17px 4px rgba(251, 146, 60, 0.8),
+      0 0 28px 8px rgba(239, 68, 68, 0.4),
+      inset 0 0 11px rgba(253, 224, 71, 0.4);
+  }
+  50% {
+    border-color: #ef4444;
+    box-shadow:
+      0 0 3px 1px rgba(239, 68, 68, 0.95),
+      0 0 11px 3px rgba(234, 88, 12, 0.7),
+      0 0 21px 5px rgba(249, 115, 22, 0.4),
+      inset 0 0 8px rgba(251, 146, 60, 0.3);
+  }
+  75% {
+    border-color: #fbbf24;
+    box-shadow:
+      0 0 7px 2px rgba(251, 146, 60, 0.95),
+      0 0 19px 5px rgba(249, 115, 22, 0.85),
+      0 0 30px 9px rgba(234, 88, 12, 0.4),
+      inset 0 0 12px rgba(253, 224, 71, 0.4);
+  }
+}
+.vzlet-fire-border {
+  animation:
+    vzlet-fire 1s ease-in-out infinite,
+    vzlet-toast-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vzlet-fire-border {
+    animation: none;
+    box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.9);
+  }
+}
+
+/* ===== Vzlet — graf napredka (barvni tokeni, tema-odvisni) ===== */
+.vzlet-chart {
+  --vc-pos: #16a34a;
+  --vc-neg: #dc2626;
+  --vc-pos-fill: rgba(22, 163, 74, 0.16);
+  --vc-neg-fill: rgba(220, 38, 38, 0.16);
+}
+[data-theme="dark"] .vzlet-chart {
+  --vc-pos: #22c55e;
+  --vc-neg: #f87171;
+  --vc-pos-fill: rgba(34, 197, 94, 0.14);
+  --vc-neg-fill: rgba(248, 113, 113, 0.14);
+}
+
+/* ===== Vzlet — „crash“ tresljaj zaslona ===== */
+@keyframes vzlet-shake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  10% {
+    transform: translate3d(-6px, 2px, 0);
+  }
+  20% {
+    transform: translate3d(7px, -3px, 0);
+  }
+  30% {
+    transform: translate3d(-8px, 4px, 0);
+  }
+  40% {
+    transform: translate3d(6px, -2px, 0);
+  }
+  50% {
+    transform: translate3d(-5px, 3px, 0);
+  }
+  60% {
+    transform: translate3d(4px, -3px, 0);
+  }
+  70% {
+    transform: translate3d(-3px, 2px, 0);
+  }
+  80% {
+    transform: translate3d(2px, -1px, 0);
+  }
+  90% {
+    transform: translate3d(-1px, 1px, 0);
+  }
+}
+.vzlet-shake {
+  animation: vzlet-shake 0.5s ease-in-out;
+}
+
+@keyframes vzlet-crash-flash {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.vzlet-crash-flash {
+  animation: vzlet-crash-flash 1.6s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vzlet-shake,
+  .vzlet-crash-flash {
+    animation: none;
+  }
+}
+
+/* ===== Samodejna prijava iz huba (TomsStudios) ===== */
+/* Nalagalnik je privzeto skrit. Med izmenjavo SSO žetonov ga pokaže (in skrije
+   obrazec) atribut `data-sso="pending"` na <html>, ki ga postavi sinhroni
+   skript v <head> še pred izrisom (src/lib/sso.ts); ob neuspehu ga useEffect
+   na /login vrne na "idle". */
+#sso-loader {
+  display: none;
+}
+[data-sso="pending"] #sso-loader {
+  display: flex;
+}
+[data-sso="pending"] #login-card {
+  display: none;
+}
