@@ -37,7 +37,7 @@ export default function VzletPlanDialog({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open]);
 
-  const title = mode === "tomorrow" ? "Načrt za jutri" : "Dodaj za danes";
+  const title = mode === "tomorrow" ? "Načrt za jutri" : "Dodatna naloga";
   const count = tasks.length;
 
   const submit = () => {
@@ -63,7 +63,7 @@ export default function VzletPlanDialog({
         <p className="text-sm text-gray-500 dark:text-gray-400">
           {mode === "tomorrow"
             ? "Pripravi nekaj najpomembnejših stvari za jutri. Manj je več."
-            : "Dodaj, kar želiš danes zares narediti."}
+            : "Dodatne naloge ne vplivajo na dnevni cilj — vsaka šteje kot +1 bonus točka."}
         </p>
 
         {count > 0 && (

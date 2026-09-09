@@ -89,7 +89,7 @@ export default function VzletTabla({
                   {p.name}
                 </p>
                 <p className="text-base font-bold tabular-nums text-blue-600 dark:text-blue-400">
-                  {p.week}
+                  {p.week} točk
                 </p>
                 <p className="text-[11px] text-gray-400 dark:text-gray-500">
                   {p.total} skupaj
@@ -118,19 +118,19 @@ export default function VzletTabla({
                 key={p.userId}
                 className="flex items-center gap-3 py-2.5 text-sm"
               >
-                <span className="w-5 flex-shrink-0 text-center text-gray-400">
+                <span className="w-5 flex-shrink-0 text-center text-lg text-gray-400">
                   {i + 1}
                 </span>
                 <Avatar name={p.name} className="h-8 w-8 text-sm" />
-                <span className="min-w-0 flex-1 truncate font-medium text-gray-800 dark:text-gray-200">
+                <span className="min-w-0 flex-1 truncate text-lg font-medium text-gray-800 dark:text-gray-200">
                   {p.name}
                 </span>
-                <span className="flex-shrink-0 text-right">
-                  <span className="font-semibold tabular-nums text-blue-600 dark:text-blue-400">
-                    {p.week}
+                <span className="flex flex-shrink-0 flex-col items-end text-right">
+                  <span className="text-lg font-semibold tabular-nums text-blue-600 dark:text-blue-400">
+                    {p.week} točk
                   </span>
-                  <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">
-                    · {p.total} skupaj
+                  <span className="text-sm text-gray-400 dark:text-gray-500">
+                    {p.total} skupaj
                   </span>
                 </span>
               </li>

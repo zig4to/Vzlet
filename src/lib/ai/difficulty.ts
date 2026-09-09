@@ -2,7 +2,7 @@ import { anthropic } from "@/lib/ai/anthropic";
 
 /**
  * Vpraša Claude Haiko za oceno težavnosti opravila (1–10). Uporablja se
- * neposredno v `dayPoints()` seštevku, zato ob kakršni koli napaki (mrežni
+ * neposredno v `liveDayPoints()` seštevku, zato ob kakršni koli napaki (mrežni
  * izpad, neveljaven ključ, nerazumljiv odgovor) vrne `null` namesto da vrže
  * napako — dodajanje opravila se zato NE sme prekiniti. Uporabnik lahko
  * manjkajočo oceno kasneje vnese ročno (glej `setVzletTaskDifficultyAction`).

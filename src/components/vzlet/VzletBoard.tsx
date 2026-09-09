@@ -9,6 +9,7 @@ import {
   renameVzletTaskAction,
   setVzletTaskDifficultyAction,
   settleVzletAction,
+  syncTodayPointsAction,
   toggleVzletTaskAction,
 } from "@/actions/vzlet";
 import { celebrationMessage, pluralOpravki } from "@/lib/vzlet/messages";
@@ -87,6 +88,13 @@ function TaskCard({
   onRate: () => void;
   onDelete: () => void;
 }) {
+  // Dodatne (isti dan dodane) naloge so vedno vredne 1 bonus točko — zanje
+  // ocena težavnosti ni relevantna, zato se "Oceni težavnost" ne ponudi.
+  const isLater = isSameDayAdded(
+    localDateStr(new Date(task.created_at)),
+    task.for_date
+  );
+
   return (
     <li
       className={clsx(
@@ -149,6 +157,14 @@ function TaskCard({
           {task.difficulty}/10
         </span>
       )}
+      {isLater && (
+        <span
+          title="Dodatna naloga — bonus točka"
+          className="flex-shrink-0 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+        >
+          1 točka
+        </span>
+      )}
       <Menu>
         {(close) => (
           <>
@@ -160,7 +176,7 @@ function TaskCard({
             >
               Preimenuj
             </MenuItem>
-            {task.difficulty == null && (
+            {task.difficulty == null && !isLater && (
               <MenuItem
                 onClick={() => {
                   close();
@@ -248,9 +264,25 @@ export default function VzletBoard({
       return a.position - b.position;
     });
 
+  // Podpis "danes" stanja (id:opravljeno:težavnost) — spremeni se ob vsakem
+  // odkljukanju/dodajanju/brisanju/oceni, ne pa ob vsakem re-renderju z isto
+  // vsebino (v nasprotju s primerjavo referenc `tasks`/`todayTasks`).
+  const todaySignature = todayTasks
+    .map((t) => `${t.id}:${t.done ? 1 : 0}:${t.difficulty ?? "-"}`)
+    .sort()
+    .join("|");
+
+  // Sprotna sinhronizacija današnjih točk v pisi_vzlet_days — takoj vidno na
+  // strani "Napredek" in v "Tabli", brez čakanja na jutrišnjo poravnavo.
+  useEffect(() => {
+    startTransition(() => {
+      syncTodayPointsAction(todayStr);
+    });
+  }, [todayStr, todaySignature, startTransition]);
+
   // Naloge, dodane isti dan (za razliko od tistih, ki so bile za danes
-  // načrtovane že prej), gredo pod ločen naslov "Kasnejše naloge" — in so
-  // pri točkovanju vredne točno 1 točko (glej `effectiveTaskPoints`).
+  // načrtovane že prej), gredo pod ločen naslov "Dodatne naloge" — in so
+  // pri točkovanju vredne točno 1 bonus točko (glej `effectiveTaskPoints`).
   const earlierTodayTasks = todayTasks.filter(
     (t) => !isSameDayAdded(localDateStr(new Date(t.created_at)), t.for_date)
   );
@@ -266,7 +298,17 @@ export default function VzletBoard({
   const doneToday = todayTasks.filter((t) => t.done).length;
   const remaining = totalToday - doneToday;
   const allDoneToday = totalToday > 0 && remaining === 0;
-  const streakNow = currentStreak(days) + (allDoneToday ? 1 : 0);
+  // Dnevni cilj = vsa vnaprej načrtovana ("Današnje naloge") opravila
+  // opravljena — dodatne (bonus) naloge na to ne vplivajo.
+  const coreAllDone =
+    earlierTodayTasks.length > 0 && earlierTodayTasks.every((t) => t.done);
+  const doneCore = earlierTodayTasks.filter((t) => t.done).length;
+  const remainingCore = earlierTodayTasks.length - doneCore;
+  // `days` lahko že vsebuje živo sinhronizirano vrstico za danes (glej
+  // syncTodayPointsAction) — izключimo jo, da se `coreAllDone` ne prišteje
+  // dvakrat (enkrat iz baze, enkrat živo).
+  const pastDays = days.filter((d) => d.day < todayStr);
+  const streakNow = currentStreak(pastDays) + (coreAllDone ? 1 : 0);
   const potentialPoints = potentialToday(totalToday, difficultySum(todayTasks));
 
   const toggle = (task: VzletTask) => {
@@ -301,12 +343,63 @@ export default function VzletBoard({
     startTransition(() => deleteVzletTaskAction(id));
   };
 
+  // Sporočilo o dnevnem cilju gleda IZKLJUČNO na "Današnje naloge" (vnaprej
+  // načrtovane) — nedokončane dodatne (bonus) naloge nanj ne vplivajo.
   const progressLine =
     totalToday === 0
       ? "Načrtuj svoj dan."
-      : remaining === 0
-        ? "Vse opravljeno 🎉"
-        : `Še ${remaining} ${pluralOpravki(remaining)} za danes`;
+      : coreAllDone
+        ? "Dan zaključen 🎉"
+        : remainingCore > 0
+          ? `Še ${remainingCore} ${pluralOpravki(remainingCore)} za danes`
+          : "Nič ni bilo načrtovano vnaprej za danes.";
+
+  // Dodatne naloge (če obstajajo) se vedno prikažejo nad "Današnje naloge" —
+  // takoj ko je dodana ena sama, ne šele ko je dnevni cilj dosežen.
+  const todaySection = earlierTodayTasks.length > 0 && (
+    <div key="today-section" className="flex min-h-0 flex-1 flex-col gap-2">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+        Današnje naloge
+      </h2>
+      <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+        {earlierTodayTasks.map((task) => (
+          <TaskCard
+            key={task.id}
+            task={task}
+            showCheckbox
+            onToggle={() => toggle(task)}
+            onRename={() => setRename({ id: task.id, value: task.title })}
+            onRate={() => setRateDifficulty({ id: task.id })}
+            onDelete={() => handleDelete(task.id)}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+
+  const laterSection = laterTodayTasks.length > 0 && (
+    <div
+      key="later-section"
+      className="flex flex-shrink-0 flex-col gap-2 border-b border-gray-200 pb-4 dark:border-gray-800"
+    >
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+        Dodatne naloge
+      </h2>
+      <ul className="space-y-2">
+        {laterTodayTasks.map((task) => (
+          <TaskCard
+            key={task.id}
+            task={task}
+            showCheckbox
+            onToggle={() => toggle(task)}
+            onRename={() => setRename({ id: task.id, value: task.title })}
+            onRate={() => setRateDifficulty({ id: task.id })}
+            onDelete={() => handleDelete(task.id)}
+          />
+        ))}
+      </ul>
+    </div>
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -322,7 +415,7 @@ export default function VzletBoard({
           <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={() => setDialog("today")}>
               <IconPlus />
-              Za danes
+              Dodatna naloga
             </Button>
             <Button onClick={() => setDialog("tomorrow")}>
               <IconPlus />
@@ -334,7 +427,14 @@ export default function VzletBoard({
 
         {/* napredek */}
         <div>
-          <p className="text-lg font-medium text-gray-900 dark:text-gray-100">
+          <p
+            className={clsx(
+              "text-lg font-medium",
+              coreAllDone
+                ? "text-green-600 dark:text-green-400"
+                : "text-gray-900 dark:text-gray-100"
+            )}
+          >
             {progressLine}
           </p>
           {totalToday > 0 && (
@@ -388,7 +488,7 @@ export default function VzletBoard({
             </p>
             <Button onClick={() => setDialog("today")}>
               <IconPlus />
-              Dodaj za danes
+              Dodaj dodatno nalogo
             </Button>
             <p className="text-xs text-gray-400 dark:text-gray-500">
               Načrt za jutri narediš z gumbom zgoraj.
@@ -396,52 +496,8 @@ export default function VzletBoard({
           </div>
         ) : (
           <>
-            {earlierTodayTasks.length > 0 && (
-              <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
-                {earlierTodayTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    showCheckbox
-                    onToggle={() => toggle(task)}
-                    onRename={() =>
-                      setRename({ id: task.id, value: task.title })
-                    }
-                    onRate={() => setRateDifficulty({ id: task.id })}
-                    onDelete={() => handleDelete(task.id)}
-                  />
-                ))}
-              </ul>
-            )}
-
-            {laterTodayTasks.length > 0 && (
-              <div
-                className={clsx(
-                  "flex flex-shrink-0 flex-col gap-2",
-                  earlierTodayTasks.length > 0 &&
-                    "border-t border-gray-200 pt-4 dark:border-gray-800"
-                )}
-              >
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                  Kasnejše naloge
-                </h2>
-                <ul className="space-y-2">
-                  {laterTodayTasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      showCheckbox
-                      onToggle={() => toggle(task)}
-                      onRename={() =>
-                        setRename({ id: task.id, value: task.title })
-                      }
-                      onRate={() => setRateDifficulty({ id: task.id })}
-                      onDelete={() => handleDelete(task.id)}
-                    />
-                  ))}
-                </ul>
-              </div>
-            )}
+            {laterSection}
+            {todaySection}
           </>
         )}
 

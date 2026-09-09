@@ -11,8 +11,6 @@ import {
   bestStreak,
   cumulativeSeries,
   currentStreak,
-  effectiveTaskPoints,
-  potentialToday,
   totalPoints,
 } from "@/lib/vzlet/score";
 import { rankForPoints } from "@/lib/vzlet/rank";
@@ -53,33 +51,25 @@ export default function VzletProgress({
   const todayDone = todayTasks.filter((t) => t.done).length;
   const todayAllDone = todayTotal > 0 && todayDone === todayTotal;
 
-  const committed = totalPoints(days);
-  const taskPoints = (t: VzletTask) =>
-    effectiveTaskPoints(localDateStr(new Date(t.created_at)), t.for_date, t.difficulty);
-  const todayDifficultySum = todayTasks.reduce(
-    (sum, t) => sum + taskPoints(t),
-    0
-  );
-  const todayDoneDifficultySum = todayTasks
-    .filter((t) => t.done)
-    .reduce((sum, t) => sum + taskPoints(t), 0);
-  const todayBanked =
-    todayTotal === 0
-      ? 0
-      : todayAllDone
-        ? potentialToday(todayTotal, todayDifficultySum)
-        : todayDoneDifficultySum;
+  // Vrstica za danes se zdaj sproti sinhronizira (glej syncTodayPointsAction
+  // v VzletBoard), zato jo tu samo preberemo — brez podvajanja izračuna.
+  const pastDays = days.filter((d) => d.day < todayStr);
+  const todayRow = days.find((d) => d.day === todayStr);
+  const committed = totalPoints(pastDays);
+  const todayBanked = todayRow?.points ?? 0;
   const currentTotal = committed + todayBanked;
 
   const rank = rankForPoints(currentTotal);
-  const streak = currentStreak(days) + (todayAllDone ? 1 : 0);
-  const best = Math.max(bestStreak(days), streak);
+  // Streak nad `pastDays` (ne `days`) + živ dodatek za danes, da se današnji
+  // napredek ne šteje dvakrat, če je vrstica za danes že sinhronizirana.
+  const streak = currentStreak(pastDays) + (todayAllDone ? 1 : 0);
+  const best = Math.max(bestStreak(pastDays), streak);
 
   const hasData = days.length > 0 || todayTotal > 0;
   const series: ChartPoint[] = hasData
     ? [
         { label: "začetek", total: 0 },
-        ...cumulativeSeries(days).map((p) => ({
+        ...cumulativeSeries(pastDays).map((p) => ({
           label: short(p.day),
           total: p.total,
         })),

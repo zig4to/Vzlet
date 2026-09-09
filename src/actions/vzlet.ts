@@ -7,7 +7,7 @@ import {
   getVzletSharedTasks,
   getVzletSharers,
 } from "@/lib/data/vzlet";
-import { dayPoints, effectiveTaskPoints } from "@/lib/vzlet/score";
+import { isSameDayAdded, liveDayPoints } from "@/lib/vzlet/score";
 import { rateTaskDifficulty } from "@/lib/ai/difficulty";
 import type {
   VzletSharedTask,
@@ -42,7 +42,12 @@ export async function addVzletTaskAction(
 
   const supabase = await createClient();
   const position = await nextVzletPosition(supabase, forDate);
-  const difficulty = await rateTaskDifficulty(clean);
+
+  // Dodatne (isti dan dodane) naloge so vedno vredne 1 bonus točko — AI
+  // ocene zanje sploh ne kličemo, ker je pri točkovanju ne uporabimo.
+  const nowUtcDateStr = new Date().toISOString().slice(0, 10);
+  const isLaterTask = isSameDayAdded(nowUtcDateStr, forDate);
+  const difficulty = isLaterTask ? null : await rateTaskDifficulty(clean);
 
   const { error } = await supabase
     .from("pisi_vzlet_tasks")
@@ -129,33 +134,33 @@ export async function settleVzletAction(
 ): Promise<{ missedDays: number; penaltyAdded: number }> {
   if (!DATE_RE.test(todayStr)) return { missedDays: 0, penaltyAdded: 0 };
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { missedDays: 0, penaltyAdded: 0 };
 
   const [{ data: pastTasks }, { data: settledDays }] = await Promise.all([
     supabase
       .from("pisi_vzlet_tasks")
       .select("for_date, done, difficulty, created_at")
       .lt("for_date", todayStr),
-    supabase.from("pisi_vzlet_days").select("day").lt("day", todayStr),
+    supabase.from("pisi_vzlet_days").select("day, all_done").lt("day", todayStr),
   ]);
 
-  const byDay = new Map<
-    string,
-    { total: number; done: number; difficultySum: number }
-  >();
+  const byDay = new Map<string, NonNullable<typeof pastTasks>>();
   for (const t of pastTasks ?? []) {
-    const e = byDay.get(t.for_date) ?? { total: 0, done: 0, difficultySum: 0 };
-    e.total += 1;
-    if (t.done) e.done += 1;
-    e.difficultySum += effectiveTaskPoints(
-      t.created_at.slice(0, 10),
-      t.for_date,
-      t.difficulty
-    );
-    byDay.set(t.for_date, e);
+    const arr = byDay.get(t.for_date) ?? [];
+    arr.push(t);
+    byDay.set(t.for_date, arr);
   }
-  const already = new Set((settledDays ?? []).map((d) => d.day));
+  // Dnevi, ki so bili že v celoti (živo) zaključeni, se ne dotikamo — le
+  // manjkajoči ali nedokončani (ostali `!all_done`) dobijo/posodobijo -500.
+  const alreadyFinal = new Set(
+    (settledDays ?? []).filter((d) => d.all_done).map((d) => d.day)
+  );
 
   const rows: {
+    user_id: string;
     day: string;
     points: number;
     tasks_total: number;
@@ -163,22 +168,25 @@ export async function settleVzletAction(
     all_done: boolean;
   }[] = [];
   let missedDays = 0;
-  for (const [day, { total, done, difficultySum }] of byDay) {
-    if (total < 1 || already.has(day)) continue;
-    const allDone = done === total;
-    const points = dayPoints(total, done, difficultySum);
+  for (const [day, dayTasks] of byDay) {
+    if (dayTasks.length < 1 || alreadyFinal.has(day)) continue;
+    const live = liveDayPoints(dayTasks);
+    const points = live.allDone ? live.points : -500;
     rows.push({
+      user_id: user.id,
       day,
       points,
-      tasks_total: total,
-      tasks_done: done,
-      all_done: allDone,
+      tasks_total: live.tasksTotal,
+      tasks_done: live.tasksDone,
+      all_done: live.allDone,
     });
-    if (points < 0) missedDays += 1;
+    if (!live.allDone) missedDays += 1;
   }
 
   if (rows.length > 0) {
-    await supabase.from("pisi_vzlet_days").insert(rows);
+    await supabase
+      .from("pisi_vzlet_days")
+      .upsert(rows, { onConflict: "user_id,day" });
   }
 
   // Kazenska opravila za zamujene dneve.
@@ -214,6 +222,54 @@ export async function settleVzletAction(
 
   revalidatePath("/", "layout");
   return { missedDays, penaltyAdded };
+}
+
+/**
+ * Sprotna (živa) sinhronizacija točk za DANAŠNJI dan v `pisi_vzlet_days` —
+ * kliče se ob vsaki spremembi današnjih opravil, da se točke takoj poznajo
+ * na strani "Napredek" in v "Tabli", namesto da čakajo na jutrišnjo
+ * `settleVzletAction`. Glej `liveDayPoints` za pravila (vnaprej načrtovana
+ * opravila štejejo šele, ko je dan v celoti zaključen; kasneje dodana
+ * opravila +1 takoj ob vsakem odkljukanju).
+ */
+export async function syncTodayPointsAction(todayStr: string): Promise<void> {
+  if (!DATE_RE.test(todayStr)) return;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data: todayTasks } = await supabase
+    .from("pisi_vzlet_tasks")
+    .select("done, created_at, for_date, difficulty")
+    .eq("for_date", todayStr);
+
+  if (!todayTasks || todayTasks.length === 0) {
+    await supabase
+      .from("pisi_vzlet_days")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("day", todayStr);
+    revalidatePath("/", "layout");
+    return;
+  }
+
+  const live = liveDayPoints(todayTasks);
+
+  await supabase.from("pisi_vzlet_days").upsert(
+    {
+      user_id: user.id,
+      day: todayStr,
+      points: live.points,
+      tasks_total: live.tasksTotal,
+      tasks_done: live.tasksDone,
+      all_done: live.allDone,
+    },
+    { onConflict: "user_id,day" }
+  );
+
+  revalidatePath("/", "layout");
 }
 
 // ===== Kazenski seznam (pool) =====
