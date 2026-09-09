@@ -12,6 +12,7 @@ import { rateTaskDifficulty } from "@/lib/ai/difficulty";
 import type {
   VzletSharedTask,
   VzletSharer,
+  VzletTaskSnapshotEntry,
 } from "@/lib/types/database.types";
 
 export type VzletFormState = { error?: string };
@@ -116,6 +117,30 @@ export async function deleteVzletTaskAction(id: string): Promise<void> {
   revalidatePath("/", "layout");
 }
 
+/**
+ * Trajen posnetek opravil za en dan — shrani se v `pisi_vzlet_days.
+ * tasks_snapshot`, da je pogled "Zadnji dnevi" pravilen tudi potem, ko so
+ * neopravljena opravila premaknjena na kasnejši dan (glej 0008 migracijo).
+ */
+function buildSnapshot(
+  dayTasks: {
+    title: string;
+    done: boolean;
+    is_penalty: boolean;
+    difficulty: number | null;
+    for_date: string;
+    created_at: string;
+  }[]
+): VzletTaskSnapshotEntry[] {
+  return dayTasks.map((t) => ({
+    title: t.title,
+    done: t.done,
+    isPenalty: t.is_penalty,
+    isLater: isSameDayAdded(t.created_at.slice(0, 10), t.for_date),
+    difficulty: t.difficulty,
+  }));
+}
+
 function pickPenalties(titles: string[], count: number): string[] {
   if (titles.length === 0) return [];
   const shuffled = [...titles].sort(() => Math.random() - 0.5);
@@ -142,7 +167,7 @@ export async function settleVzletAction(
   const [{ data: pastTasks }, { data: settledDays }] = await Promise.all([
     supabase
       .from("pisi_vzlet_tasks")
-      .select("for_date, done, difficulty, created_at")
+      .select("title, for_date, done, is_penalty, difficulty, created_at")
       .lt("for_date", todayStr),
     supabase.from("pisi_vzlet_days").select("day, all_done").lt("day", todayStr),
   ]);
@@ -166,6 +191,7 @@ export async function settleVzletAction(
     tasks_total: number;
     tasks_done: number;
     all_done: boolean;
+    tasks_snapshot: VzletTaskSnapshotEntry[];
   }[] = [];
   let missedDays = 0;
   for (const [day, dayTasks] of byDay) {
@@ -179,6 +205,7 @@ export async function settleVzletAction(
       tasks_total: live.tasksTotal,
       tasks_done: live.tasksDone,
       all_done: live.allDone,
+      tasks_snapshot: buildSnapshot(dayTasks),
     });
     if (!live.allDone) missedDays += 1;
   }
@@ -242,7 +269,7 @@ export async function syncTodayPointsAction(todayStr: string): Promise<void> {
 
   const { data: todayTasks } = await supabase
     .from("pisi_vzlet_tasks")
-    .select("done, created_at, for_date, difficulty")
+    .select("title, done, created_at, for_date, is_penalty, difficulty")
     .eq("for_date", todayStr);
 
   if (!todayTasks || todayTasks.length === 0) {
@@ -265,6 +292,7 @@ export async function syncTodayPointsAction(todayStr: string): Promise<void> {
       tasks_total: live.tasksTotal,
       tasks_done: live.tasksDone,
       all_done: live.allDone,
+      tasks_snapshot: buildSnapshot(todayTasks),
     },
     { onConflict: "user_id,day" }
   );
