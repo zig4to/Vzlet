@@ -266,6 +266,15 @@ export const IconTrendingUp = (p: SVGProps<SVGSVGElement>) => (
   </Base>
 );
 
+// Lucide „trophy“ — poenostavljena pot.
+export const IconTrophy = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M8 4h8v5a4 4 0 0 1-8 0V4Z" />
+    <path d="M8 5H4v1a4 4 0 0 0 4 4M16 5h4v1a4 4 0 0 1-4 4" />
+    <path d="M12 13v4M9 21h6M10 17h4v4h-4z" />
+  </Base>
+);
+
 // Lucide „users“
 export const IconUsers = (p: SVGProps<SVGSVGElement>) => (
   <Base {...p}>

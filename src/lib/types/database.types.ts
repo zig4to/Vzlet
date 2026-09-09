@@ -1,7 +1,20 @@
 // Ročno napisani tipi za tabele Vzleta v Supabase (predpona `pisi_`).
-// Ustrezajo supabase/migrations/0002–0005. Če imaš Supabase CLI, jih lahko
+// Ustrezajo supabase/migrations/0002–0008. Če imaš Supabase CLI, jih lahko
 // nadomestiš z generiranimi:
 //   supabase gen types typescript --project-id <id> > src/lib/types/database.types.ts
+
+/**
+ * En vnos v `pisi_vzlet_days.tasks_snapshot` (jsonb) — trajen posnetek
+ * opravila ob poravnavi/sinhronizaciji dneva, neodvisen od poznejšega
+ * premikanja neopravljenih opravil naprej (glej 0008_vzlet_days_snapshot.sql).
+ */
+export type VzletTaskSnapshotEntry = {
+  title: string;
+  done: boolean;
+  isPenalty: boolean;
+  isLater: boolean;
+  difficulty: number | null;
+};
 
 export type Database = {
   public: {
@@ -58,6 +71,7 @@ export type Database = {
           tasks_total: number;
           tasks_done: number;
           all_done: boolean;
+          tasks_snapshot: VzletTaskSnapshotEntry[] | null;
           created_at: string;
           updated_at: string;
         };
@@ -69,6 +83,7 @@ export type Database = {
           tasks_total?: number;
           tasks_done?: number;
           all_done?: boolean;
+          tasks_snapshot?: VzletTaskSnapshotEntry[] | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -80,6 +95,7 @@ export type Database = {
           tasks_total?: number;
           tasks_done?: number;
           all_done?: boolean;
+          tasks_snapshot?: VzletTaskSnapshotEntry[] | null;
           created_at?: string;
           updated_at?: string;
         };

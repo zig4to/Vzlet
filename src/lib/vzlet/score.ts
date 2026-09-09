@@ -5,18 +5,116 @@ function dayDiff(a: string, b: string): number {
   return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
 }
 
-/**
- * Točke za zaključen dan po pravilih Vzleta: uspešen dan (vsa opravila
- * opravljena) je vreden 50 + vsota težavnosti (`difficulty`) opravil tega
- * dne; zamujen dan (eno ali več neopravljenih) odbije -500.
- */
-export function dayPoints(
-  tasksTotal: number,
-  tasksDone: number,
-  difficultySum: number
+/** `YYYY-MM-DD` iz lokalnega (ne UTC) datuma. */
+function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Ponedeljek tedna, ki vsebuje dani datum (lokalni čas, `YYYY-MM-DD`). */
+export function mondayOf(d: Date): string {
+  const wd = d.getDay(); // 0 = nedelja … 6 = sobota
+  const diff = wd === 0 ? -6 : 1 - wd;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diff);
+  return localDateStr(monday);
+}
+
+/** Vsota `points` od (vključno) danega datuma dalje. */
+export function weekPoints(
+  days: { day: string; points: number }[],
+  weekStartStr: string
 ): number {
-  if (tasksTotal <= 0) return 0;
-  return tasksDone === tasksTotal ? 50 + difficultySum : -500;
+  return days
+    .filter((d) => d.day >= weekStartStr)
+    .reduce((sum, d) => sum + d.points, 0);
+}
+
+/**
+ * Ali je bilo opravilo dodano isti dan, za katerega je bilo namenjeno
+ * (namesto vnaprej, npr. dan prej prek "Cilji za jutri"). `createdAtDateStr`
+ * in `forDateStr` sta oba `YYYY-MM-DD`; klicatelj poskrbi za pravo izpeljavo
+ * (lokalni čas na klientu, UTC na strežniku — glej klicna mesta).
+ */
+export function isSameDayAdded(
+  createdAtDateStr: string,
+  forDateStr: string
+): boolean {
+  return createdAtDateStr >= forDateStr;
+}
+
+/**
+ * Efektivna vrednost opravila za točkovanje: kasneje (isti dan) dodana
+ * opravila spodbujamo, da jih načrtujemo vnaprej — zato so vredna točno 1
+ * točko ne glede na oceno težavnosti; vnaprej načrtovana opravila štejejo
+ * po svoji oceni (`difficulty`, manjkajoča = 0).
+ */
+export function effectiveTaskPoints(
+  createdAtDateStr: string,
+  forDateStr: string,
+  difficulty: number | null
+): number {
+  return isSameDayAdded(createdAtDateStr, forDateStr) ? 1 : difficulty ?? 0;
+}
+
+export type LiveDayPoints = {
+  points: number;
+  tasksTotal: number;
+  tasksDone: number;
+  allDone: boolean;
+};
+
+/**
+ * Živa (sprotna) vrednost točk za dan, ki še traja ali čaka na poravnavo.
+ * Opravila, načrtovana vnaprej ("core", glej `isSameDayAdded`), skupaj z
+ * osnovo 50 točk prispevajo, TAKOJ KO JE CORE SEZNAM V CELOTI DOKONČAN —
+ * neodvisno od dodatnih (isti dan dodanih) opravil. Dodatne naloge so samo
+ * bonus: vsaka prispeva +1 takoj, ko je posamično opravljena, ne glede na
+ * stanje core seznama. Brez core opravil dan ne more biti "uspešen"
+ * (`allDone = false`, glej spodaj). Uporablja se tako za živo sprotno stanje
+ * danes (`syncTodayPointsAction`) kot za poravnavo preteklih dni
+ * (`settleVzletAction`, kjer se `points` ob `!allDone` nadomesti z -500).
+ */
+export function liveDayPoints(
+  tasks: {
+    done: boolean;
+    for_date: string;
+    created_at: string;
+    difficulty: number | null;
+  }[]
+): LiveDayPoints {
+  const tasksTotal = tasks.length;
+  const tasksDone = tasks.filter((t) => t.done).length;
+
+  const core = tasks.filter(
+    (t) => !isSameDayAdded(t.created_at.slice(0, 10), t.for_date)
+  );
+  const later = tasks.filter((t) =>
+    isSameDayAdded(t.created_at.slice(0, 10), t.for_date)
+  );
+
+  // "Dan uspešen" = dokončan seznam, ki je bil za ta dan načrtovan vnaprej
+  // (core) — dodatne (isti dan dodane) naloge so samo bonus in na to NE
+  // vplivajo. Brez core opravil (nič ni bilo načrtovano vnaprej) dan ne
+  // more biti "uspešen".
+  const coreAllDone = core.length > 0 && core.every((t) => t.done);
+  const coreDifficultySum = core.reduce(
+    (sum, t) => sum + (t.difficulty ?? 0),
+    0
+  );
+  const corePoints = coreAllDone ? 50 + coreDifficultySum : 0;
+  // Dodatne naloge: vsaka dokončana doda točno 1 bonus točko, sproti,
+  // neodvisno od core seznama.
+  const laterPoints = later.filter((t) => t.done).length;
+
+  return {
+    points: corePoints + laterPoints,
+    tasksTotal,
+    tasksDone,
+    allDone: coreAllDone,
+  };
 }
 
 /** Potencial današnjega dne, če dokončaš vse (`50 + vsota težavnosti`). */
@@ -39,8 +137,8 @@ export function cumulativeSeries(days: VzletDay[]): CumulativePoint[] {
   });
 }
 
-/** Skupno število točk. */
-export function totalPoints(days: VzletDay[]): number {
+/** Skupno število točk (sprejme tudi "tanjšo" obliko, le `{ points }`). */
+export function totalPoints(days: { points: number }[]): number {
   return days.reduce((sum, d) => sum + d.points, 0);
 }
 
