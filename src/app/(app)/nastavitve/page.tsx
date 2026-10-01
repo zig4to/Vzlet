@@ -1,11 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 
 export default async function NastavitvePage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 p-6 pt-14 md:pt-6">

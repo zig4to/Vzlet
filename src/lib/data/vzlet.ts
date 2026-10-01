@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAuthUser } from "@/lib/supabase/auth";
 import type {
   Database,
   VzletBacklogItem,
@@ -23,9 +24,7 @@ type TypedSupabaseClient = SupabaseClient<Database>;
 export async function getVzletTasks(
   supabase: TypedSupabaseClient
 ): Promise<VzletTask[]> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
   if (!user) return [];
 
   const sinceDate = new Date(Date.now() - 3 * 86_400_000)
@@ -52,9 +51,7 @@ export async function getVzletTasks(
 export async function getVzletDays(
   supabase: TypedSupabaseClient
 ): Promise<VzletDay[]> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
   if (!user) return [];
 
   // Glej opombo v getVzletTasks — enak razlog za eksplicitni user_id filter.
@@ -106,9 +103,7 @@ export async function getVzletBacklog(
 export async function getMyVzletSharing(
   supabase: TypedSupabaseClient
 ): Promise<boolean> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
   if (!user) return false;
 
   const { data, error } = await supabase
@@ -125,9 +120,7 @@ export async function getMyVzletSharing(
 export async function getVzletSharers(
   supabase: TypedSupabaseClient
 ): Promise<VzletSharer[]> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
 
   const { data, error } = await supabase
     .from("pisi_vzlet_sharing")
@@ -178,9 +171,7 @@ export type VzletLeaderboardEntry = {
 export async function getVzletLeaderboard(
   supabase: TypedSupabaseClient
 ): Promise<VzletLeaderboardEntry[]> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
   if (!user) return [];
 
   const { data: sharingRows, error: sharingError } = await supabase

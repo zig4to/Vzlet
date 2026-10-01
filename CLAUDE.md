@@ -130,6 +130,14 @@ menijske postavke "Oceni težavnost" (`setVzletTaskDifficultyAction`).
 Manjkajoča ocena (`null`) šteje 0. Za ponovni vklop odkomentiraj import in
 klic v `addVzletTaskAction` (ob napaki vrne `null`, dodajanja ne prekine).
 
+### Prijava / seja
+
+Uporabnika povsod (middleware, strani, akcije) dobimo z `getAuthUser()` iz
+`src/lib/supabase/auth.ts` (`getClaims()` — projekt ima asimetrične ES256
+ključe, zato se JWT preveri lokalno, brez klica na Supabase Auth). Ne
+vračaj se na `getUser()` brez razloga. Middleware ob začasni (omrežni)
+napaki obiskovalca s piškotkom seje NE preusmeri na `/login`.
+
 ### PWA / middleware past — past, ki se lahko ponovi
 
 `src/proxy.ts` (middleware) ščiti vse poti, ki niso v `PUBLIC_PATHS`

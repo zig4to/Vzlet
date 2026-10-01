@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import SsoHashCleanup from "@/components/auth/SsoHashCleanup";
 import IntroFirstRun from "@/components/vzlet/IntroFirstRun";
 import VzletTabs from "@/components/vzlet/VzletTabs";
@@ -13,9 +14,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
 
   return (
     <div className="flex h-screen w-full flex-col">

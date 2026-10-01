@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/registracija"];
@@ -27,22 +28,33 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Pomembno: getUser() osveži sejo in preveri token pri Supabase strežniku.
-  // Če Supabase ni dosegljiv (napačne/manjkajoče env spremenljivke, izpad
-  // omrežja), obravnavamo to enako kot "ni prijavljen" namesto da vržemo 500.
-  let user = null;
+  // getClaims() po potrebi osveži sejo (pretečen dostopni žeton zamenja z
+  // osvežitvenim in nove piškotke zapiše prek setAll) in podpis žetona
+  // preveri lokalno (ES256) — brez klica na Supabase Auth ob vsaki zahtevi.
+  let user: unknown = null;
+  // Začasna napaka (izpad omrežja, Supabase nedosegljiv) NI odjava: če ima
+  // obiskovalec piškotek s sejo, ga ne preusmerimo na prijavo, da se ne bi
+  // moral po nepotrebnem prijavljati znova.
+  let transientError = false;
   try {
-    const {
-      data: { user: fetchedUser },
-    } = await supabase.auth.getUser();
-    user = fetchedUser;
+    const { data, error } = await supabase.auth.getClaims();
+    user = data?.claims?.sub ?? null;
+    if (error && isAuthRetryableFetchError(error)) transientError = true;
   } catch (error) {
-    console.error("Supabase auth.getUser() ni uspel:", error);
+    console.error("Supabase auth.getClaims() ni uspel:", error);
+    transientError = true;
   }
+  const hasSessionCookie = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"));
 
   const isPublicPath = PUBLIC_PATHS.some((path) =>
     request.nextUrl.pathname.startsWith(path)
   );
+
+  if (!user && transientError && hasSessionCookie) {
+    return response;
+  }
 
   if (!user && !isPublicPath) {
     const loginUrl = request.nextUrl.clone();

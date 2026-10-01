@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import {
   getMyVzletSharing,
   getVzletSharedTasks,
@@ -66,9 +67,7 @@ export async function addVzletTaskAction(
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
   if (!user) return { error: "Nisi prijavljen." };
   const position = await nextVzletPosition(supabase, user.id, forDate);
 
@@ -188,9 +187,7 @@ export async function settleVzletAction(
 ): Promise<{ missedDays: number; penaltyAdded: number }> {
   if (!DATE_RE.test(todayStr)) return { missedDays: 0, penaltyAdded: 0 };
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
   if (!user) return { missedDays: 0, penaltyAdded: 0 };
 
   const [{ data: pastTasks }, { data: settledDays }] = await Promise.all([
@@ -304,9 +301,7 @@ export async function settleVzletAction(
 export async function syncTodayPointsAction(todayStr: string): Promise<void> {
   if (!DATE_RE.test(todayStr)) return;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
   if (!user) return;
 
   const { data: todayTasks } = await supabase
@@ -442,9 +437,7 @@ export async function moveBacklogToDayAction(
 /** Vklopi/izklopi deljenje. Vrne dejansko shranjeno stanje. */
 export async function setVzletSharingAction(shared: boolean): Promise<boolean> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
   if (!user) return false;
 
   const displayName = (user.email?.split("@")[0] ?? "Uporabnik").slice(0, 60);
