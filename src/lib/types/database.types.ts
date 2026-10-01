@@ -72,6 +72,7 @@ export type Database = {
           tasks_done: number;
           all_done: boolean;
           tasks_snapshot: VzletTaskSnapshotEntry[] | null;
+          settled_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -84,6 +85,7 @@ export type Database = {
           tasks_done?: number;
           all_done?: boolean;
           tasks_snapshot?: VzletTaskSnapshotEntry[] | null;
+          settled_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -96,6 +98,7 @@ export type Database = {
           tasks_done?: number;
           all_done?: boolean;
           tasks_snapshot?: VzletTaskSnapshotEntry[] | null;
+          settled_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };

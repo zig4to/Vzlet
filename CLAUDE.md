@@ -80,8 +80,9 @@ je edini vir resnice za izračun točk enega dne (uporablja jo tako sprotna
 sinhronizacija kot poravnava preteklih dni):
 
 - Opravilo je **"core"** (načrtovano vnaprej) ali **"kasneje dodano"**
-  (`isSameDayAdded`: `created_at`-datum >= `for_date`, npr. dodano na hitro
-  isti dan namesto dan prej prek "Cilji za jutri").
+  (`isLaterTask`: `created_at`-datum >= `for_date`, npr. dodano na hitro
+  isti dan namesto dan prej prek "Cilji za jutri"). **Kazenska opravila
+  (`is_penalty`) so vedno core**, čeprav nastanejo isti dan.
 - Osnova **10 + vsota težavnosti core opravil** se prišteje šele, ko so
   **čisto vsa** opravila tega dne (core in kasneje dodana) odkljukana.
 - **Kasneje dodana opravila prispevajo +1 vsako posebej, takoj ko so
@@ -99,9 +100,12 @@ brez čakanja na jutri.
 
 **Poravnava preteklih dni** (`settleVzletAction`, klicana enkrat ob nalaganju
 `VzletBoard.tsx`): ker lahko za "danes" že obstaja živo sinhronizirana
-vrstica, poravnava dneve **upserta**, ne inserta, in dan preskoči le, če že
-ima `all_done = true` (torej je bil živo dokončan) — sicer (manjka vrstica
-ali `all_done = false`) jo prepiše na -125. Po poravnavi doda kazenska
+vrstica, poravnava dneve **upserta**, ne inserta, in dan preskoči, če že
+ima `all_done = true` (živo dokončan) ali `settled_at` (že poravnan, migracija
+`0009`) — sicer ga oceni (-125, če core ni dokončan) in nastavi `settled_at`.
+Brez `settled_at` bi se zamujen dan ob vsakem nalaganju strani ponovno
+poravnal (ponovni -125 + nove kazni). `syncTodayPointsAction` `settled_at`
+nikoli ne nastavlja. Po poravnavi doda kazenska
 opravila iz `pisi_vzlet_penalty_pool` za zamujene dni in prenese
 neopravljena opravila na `todayStr`.
 

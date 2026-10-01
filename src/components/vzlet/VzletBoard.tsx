@@ -16,7 +16,7 @@ import { celebrationMessage, pluralOpravki } from "@/lib/vzlet/messages";
 import {
   currentStreak,
   effectiveTaskPoints,
-  isSameDayAdded,
+  isLaterTask,
   potentialToday,
 } from "@/lib/vzlet/score";
 import Button from "@/components/ui/Button";
@@ -59,11 +59,7 @@ function difficultySum(tasks: VzletTask[]): number {
   return tasks.reduce(
     (sum, t) =>
       sum +
-      effectiveTaskPoints(
-        localDateStr(new Date(t.created_at)),
-        t.for_date,
-        t.difficulty
-      ),
+      effectiveTaskPoints(t, localDateStr(new Date(t.created_at))),
     0
   );
 }
@@ -89,10 +85,7 @@ function TaskCard({
 }) {
   // Dodatne (isti dan dodane) naloge so vedno vredne 1 bonus točko — zanje
   // ocena težavnosti ni relevantna, zato se "Oceni težavnost" ne ponudi.
-  const isLater = isSameDayAdded(
-    localDateStr(new Date(task.created_at)),
-    task.for_date
-  );
+  const isLater = isLaterTask(task, localDateStr(new Date(task.created_at)));
 
   return (
     <li
@@ -286,10 +279,10 @@ export default function VzletBoard({
   // načrtovane že prej), gredo pod ločen naslov "Dodatne naloge" — in so
   // pri točkovanju vredne točno 1 bonus točko (glej `effectiveTaskPoints`).
   const earlierTodayTasks = todayTasks.filter(
-    (t) => !isSameDayAdded(localDateStr(new Date(t.created_at)), t.for_date)
+    (t) => !isLaterTask(t, localDateStr(new Date(t.created_at)))
   );
   const laterTodayTasks = todayTasks.filter((t) =>
-    isSameDayAdded(localDateStr(new Date(t.created_at)), t.for_date)
+    isLaterTask(t, localDateStr(new Date(t.created_at)))
   );
 
   const tomorrowTasks = tasks

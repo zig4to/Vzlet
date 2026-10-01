@@ -46,17 +46,28 @@ export function isSameDayAdded(
 }
 
 /**
+ * Ali opravilo šteje kot "kasneje dodano" (bonus +1). Kazenska opravila so
+ * vedno "core" — čeprav nastanejo isti dan, morajo biti opravljena, da je
+ * dan uspešen (sicer bi bil dan s samimi kaznimi vedno zamujen).
+ */
+export function isLaterTask(
+  task: { is_penalty: boolean; for_date: string },
+  createdAtDateStr: string
+): boolean {
+  return !task.is_penalty && isSameDayAdded(createdAtDateStr, task.for_date);
+}
+
+/**
  * Efektivna vrednost opravila za točkovanje: kasneje (isti dan) dodana
  * opravila spodbujamo, da jih načrtujemo vnaprej — zato so vredna točno 1
  * točko ne glede na oceno težavnosti; vnaprej načrtovana opravila štejejo
  * po svoji oceni (`difficulty`, manjkajoča = 0).
  */
 export function effectiveTaskPoints(
-  createdAtDateStr: string,
-  forDateStr: string,
-  difficulty: number | null
+  task: { is_penalty: boolean; for_date: string; difficulty: number | null },
+  createdAtDateStr: string
 ): number {
-  return isSameDayAdded(createdAtDateStr, forDateStr) ? 1 : difficulty ?? 0;
+  return isLaterTask(task, createdAtDateStr) ? 1 : task.difficulty ?? 0;
 }
 
 export type LiveDayPoints = {
@@ -68,7 +79,7 @@ export type LiveDayPoints = {
 
 /**
  * Živa (sprotna) vrednost točk za dan, ki še traja ali čaka na poravnavo.
- * Opravila, načrtovana vnaprej ("core", glej `isSameDayAdded`), skupaj z
+ * Opravila, načrtovana vnaprej, in kazenska ("core", glej `isLaterTask`), skupaj z
  * osnovo 10 točk prispevajo, TAKOJ KO JE CORE SEZNAM V CELOTI DOKONČAN —
  * neodvisno od dodatnih (isti dan dodanih) opravil. Dodatne naloge so samo
  * bonus: vsaka prispeva +1 takoj, ko je posamično opravljena, ne glede na
@@ -83,17 +94,16 @@ export function liveDayPoints(
     for_date: string;
     created_at: string;
     difficulty: number | null;
+    is_penalty: boolean;
   }[]
 ): LiveDayPoints {
   const tasksTotal = tasks.length;
   const tasksDone = tasks.filter((t) => t.done).length;
 
   const core = tasks.filter(
-    (t) => !isSameDayAdded(t.created_at.slice(0, 10), t.for_date)
+    (t) => !isLaterTask(t, t.created_at.slice(0, 10))
   );
-  const later = tasks.filter((t) =>
-    isSameDayAdded(t.created_at.slice(0, 10), t.for_date)
-  );
+  const later = tasks.filter((t) => isLaterTask(t, t.created_at.slice(0, 10)));
 
   // "Dan uspešen" = dokončan seznam, ki je bil za ta dan načrtovan vnaprej
   // (core) — dodatne (isti dan dodane) naloge so samo bonus in na to NE

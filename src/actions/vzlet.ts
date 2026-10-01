@@ -7,7 +7,11 @@ import {
   getVzletSharedTasks,
   getVzletSharers,
 } from "@/lib/data/vzlet";
-import { isSameDayAdded, liveDayPoints } from "@/lib/vzlet/score";
+import {
+  isLaterTask,
+  isSameDayAdded,
+  liveDayPoints,
+} from "@/lib/vzlet/score";
 import { rateTaskDifficulty } from "@/lib/ai/difficulty";
 import type {
   VzletSharedTask,
@@ -60,8 +64,8 @@ export async function addVzletTaskAction(
   // Dodatne (isti dan dodane) naloge so vedno vredne 1 bonus točko — AI
   // ocene zanje sploh ne kličemo, ker je pri točkovanju ne uporabimo.
   const nowUtcDateStr = new Date().toISOString().slice(0, 10);
-  const isLaterTask = isSameDayAdded(nowUtcDateStr, forDate);
-  const difficulty = isLaterTask ? null : await rateTaskDifficulty(clean);
+  const isLater = isSameDayAdded(nowUtcDateStr, forDate);
+  const difficulty = isLater ? null : await rateTaskDifficulty(clean);
 
   const { error } = await supabase
     .from("pisi_vzlet_tasks")
@@ -149,7 +153,7 @@ function buildSnapshot(
     title: t.title,
     done: t.done,
     isPenalty: t.is_penalty,
-    isLater: isSameDayAdded(t.created_at.slice(0, 10), t.for_date),
+    isLater: isLaterTask(t, t.created_at.slice(0, 10)),
     difficulty: t.difficulty,
   }));
 }
@@ -185,7 +189,7 @@ export async function settleVzletAction(
       .lt("for_date", todayStr),
     supabase
       .from("pisi_vzlet_days")
-      .select("day, all_done")
+      .select("day, all_done, settled_at")
       .eq("user_id", user.id)
       .lt("day", todayStr),
   ]);
@@ -196,11 +200,16 @@ export async function settleVzletAction(
     arr.push(t);
     byDay.set(t.for_date, arr);
   }
-  // Dnevi, ki so bili že v celoti (živo) zaključeni, se ne dotikamo — le
-  // manjkajoči ali nedokončani (ostali `!all_done`) dobijo/posodobijo -125.
+  // Dnevi, ki so že poravnani (`settled_at`) ali v celoti (živo) zaključeni,
+  // se ne dotikamo. Brez tega bi se zamujen dan ob vsakem nalaganju ponovno
+  // ocenil — po prenosu neopravljenih nalog na njem ostanejo le opravljene,
+  // kar je dalo ponovno -125 + nove kazni (ali pa tiho "uspešen" dan).
   const alreadyFinal = new Set(
-    (settledDays ?? []).filter((d) => d.all_done).map((d) => d.day)
+    (settledDays ?? [])
+      .filter((d) => d.all_done || d.settled_at != null)
+      .map((d) => d.day)
   );
+  const settledAt = new Date().toISOString();
 
   const rows: {
     user_id: string;
@@ -210,6 +219,7 @@ export async function settleVzletAction(
     tasks_done: number;
     all_done: boolean;
     tasks_snapshot: VzletTaskSnapshotEntry[];
+    settled_at: string;
   }[] = [];
   let missedDays = 0;
   for (const [day, dayTasks] of byDay) {
@@ -224,6 +234,7 @@ export async function settleVzletAction(
       tasks_done: live.tasksDone,
       all_done: live.allDone,
       tasks_snapshot: buildSnapshot(dayTasks),
+      settled_at: settledAt,
     });
     if (!live.allDone) missedDays += 1;
   }
