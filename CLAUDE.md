@@ -120,12 +120,13 @@ formule jih je treba ponovno umeriti.
 
 `anthropic.ts` izvozi en server-only Anthropic klient (`new Anthropic()`,
 bere `ANTHROPIC_API_KEY` iz env — NE uvažaj v `"use client"` datoteke).
-`difficulty.ts` (`rateTaskDifficulty`) kliče `claude-haiku-4-5` ob vsakem
-`addVzletTaskAction`; ob kakršni koli napaki vrne `null` namesto da vrže —
-dodajanje opravila se nikoli ne sme prekiniti zaradi AI izpada. Če ostane
-`difficulty = null`, lahko uporabnik oceno ročno vnese (menijska postavka
-"Oceni težavnost" na kartici opravila, akcija
-`setVzletTaskDifficultyAction`).
+`difficulty.ts` (`rateTaskDifficulty`) kliče `claude-haiku-4-5`, a je klic
+v `addVzletTaskAction` **trenutno zakomentiran** (AI ocena izklopljena).
+Težavnost uporabnik vnese ročno in neobvezno: polje 1–10 v "Cilji za jutri"
+(`VzletPlanDialog`, 3. argument `addVzletTaskAction`) ali kasneje prek
+menijske postavke "Oceni težavnost" (`setVzletTaskDifficultyAction`).
+Manjkajoča ocena (`null`) šteje 0. Za ponovni vklop odkomentiraj import in
+klic v `addVzletTaskAction` (ob napaki vrne `null`, dodajanja ne prekine).
 
 ### PWA / middleware past — past, ki se lahko ponovi
 

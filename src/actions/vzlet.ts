@@ -12,7 +12,9 @@ import {
   isSameDayAdded,
   liveDayPoints,
 } from "@/lib/vzlet/score";
-import { rateTaskDifficulty } from "@/lib/ai/difficulty";
+// AI ocena težavnosti je začasno izklopljena — težavnost uporabnik vnese
+// ročno (neobvezno) ob dodajanju ali kasneje prek "Oceni težavnost".
+// import { rateTaskDifficulty } from "@/lib/ai/difficulty";
 import type {
   VzletSharedTask,
   VzletSharer,
@@ -48,11 +50,20 @@ async function nextVzletPosition(
 
 export async function addVzletTaskAction(
   title: string,
-  forDate: string
+  forDate: string,
+  manualDifficulty: number | null = null
 ): Promise<VzletFormState> {
   const clean = title.trim();
   if (!clean) return { error: "Opravilo ne sme biti prazno." };
   if (!DATE_RE.test(forDate)) return { error: "Neveljaven datum." };
+  if (
+    manualDifficulty != null &&
+    (!Number.isInteger(manualDifficulty) ||
+      manualDifficulty < 1 ||
+      manualDifficulty > 10)
+  ) {
+    return { error: "Težavnost mora biti celo število med 1 in 10." };
+  }
 
   const supabase = await createClient();
   const {
@@ -61,11 +72,12 @@ export async function addVzletTaskAction(
   if (!user) return { error: "Nisi prijavljen." };
   const position = await nextVzletPosition(supabase, user.id, forDate);
 
-  // Dodatne (isti dan dodane) naloge so vedno vredne 1 bonus točko — AI
-  // ocene zanje sploh ne kličemo, ker je pri točkovanju ne uporabimo.
+  // Dodatne (isti dan dodane) naloge so vedno vredne 1 bonus točko — ocene
+  // zanje ne shranimo, ker je pri točkovanju ne uporabimo.
   const nowUtcDateStr = new Date().toISOString().slice(0, 10);
   const isLater = isSameDayAdded(nowUtcDateStr, forDate);
-  const difficulty = isLater ? null : await rateTaskDifficulty(clean);
+  // const difficulty = isLater ? null : await rateTaskDifficulty(clean);
+  const difficulty = isLater ? null : manualDifficulty;
 
   const { error } = await supabase
     .from("pisi_vzlet_tasks")
@@ -82,7 +94,7 @@ export async function addVzletTaskAction(
   return {};
 }
 
-/** Ročni vnos težavnosti, kadar AI ocena ob dodajanju ni uspela. */
+/** Ročni vnos ali sprememba težavnosti obstoječega opravila. */
 export async function setVzletTaskDifficultyAction(
   id: string,
   value: number

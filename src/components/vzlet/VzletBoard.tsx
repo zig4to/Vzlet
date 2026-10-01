@@ -140,7 +140,7 @@ function TaskCard({
       )}
       {task.difficulty != null && (
         <span
-          title="AI ocena težavnosti"
+          title="Ocena težavnosti"
           className={clsx(
             "flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold",
             difficultyBadgeClass(task.difficulty)
@@ -582,7 +582,9 @@ export default function VzletBoard({
         onClose={() => setDialog(null)}
         mode="tomorrow"
         tasks={tomorrowTasks}
-        onAdd={(title) => addVzletTaskAction(title, tomorrowStr)}
+        onAdd={(title, difficulty) =>
+          addVzletTaskAction(title, tomorrowStr, difficulty)
+        }
         onDelete={handleDelete}
       />
       <VzletPlanDialog

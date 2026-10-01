@@ -13,7 +13,10 @@ type VzletPlanDialogProps = {
   onClose: () => void;
   mode: "today" | "tomorrow";
   tasks: VzletTask[];
-  onAdd: (title: string) => Promise<{ error?: string }>;
+  onAdd: (
+    title: string,
+    difficulty: number | null
+  ) => Promise<{ error?: string }>;
   onDelete: (id: string) => void;
 };
 
@@ -26,6 +29,9 @@ export default function VzletPlanDialog({
   onDelete,
 }: VzletPlanDialogProps) {
   const [value, setValue] = useState("");
+  // Neobvezna ročna ocena težavnosti (1–10) — samo za načrt za jutri, ker so
+  // dodatne naloge vedno vredne 1 točko.
+  const [difficulty, setDifficulty] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -33,6 +39,7 @@ export default function VzletPlanDialog({
     if (!open) return;
     /* eslint-disable react-hooks/set-state-in-effect */
     setValue("");
+    setDifficulty("");
     setError(null);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open]);
@@ -46,13 +53,20 @@ export default function VzletPlanDialog({
       setError("Opravilo ne sme biti prazno.");
       return;
     }
+    const rawDifficulty = mode === "tomorrow" ? difficulty.trim() : "";
+    const n = rawDifficulty === "" ? null : Number(rawDifficulty);
+    if (n != null && (!Number.isInteger(n) || n < 1 || n > 10)) {
+      setError("Težavnost mora biti celo število med 1 in 10.");
+      return;
+    }
     startTransition(async () => {
-      const res = await onAdd(trimmed);
+      const res = await onAdd(trimmed, n);
       if (res?.error) {
         setError(res.error);
         return;
       }
       setValue("");
+      setDifficulty("");
       setError(null);
     });
   };
@@ -121,6 +135,21 @@ export default function VzletPlanDialog({
             placeholder="Kaj želiš narediti?"
             onChange={(e) => setValue(e.target.value)}
           />
+          {mode === "tomorrow" && (
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={10}
+              step={1}
+              value={difficulty}
+              placeholder="1–10"
+              title="Težavnost (neobvezno, 1–10)"
+              aria-label="Težavnost (neobvezno, 1–10)"
+              onChange={(e) => setDifficulty(e.target.value)}
+              className="w-20 flex-shrink-0"
+            />
+          )}
           <Button type="submit" disabled={pending} className="flex-shrink-0">
             <IconPlus />
             {pending ? "Dodajam …" : "Dodaj"}
