@@ -2,10 +2,17 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import clsx from "@/lib/utils/clsx";
-import type { VzletDay, VzletTask } from "@/lib/types/database.types";
+import type {
+  VzletBacklogItem,
+  VzletDay,
+  VzletTask,
+} from "@/lib/types/database.types";
 import {
+  addBacklogAction,
   addVzletTaskAction,
+  deleteBacklogAction,
   deleteVzletTaskAction,
+  moveBacklogToDayAction,
   renameVzletTaskAction,
   setVzletTaskDifficultyAction,
   settleVzletAction,
@@ -26,12 +33,14 @@ import {
   IconCheck,
   IconChevronDown,
   IconFlame,
+  IconList,
   IconPlus,
   IconRocket,
 } from "@/components/ui/icons";
 import Fireworks from "@/components/vzlet/Fireworks";
 import Crash from "@/components/vzlet/Crash";
 import VzletPlanDialog from "@/components/vzlet/VzletPlanDialog";
+import VzletBacklogDialog from "@/components/vzlet/VzletBacklogDialog";
 
 function localDateStr(d: Date): string {
   const y = d.getFullYear();
@@ -199,12 +208,17 @@ function TaskCard({
 export default function VzletBoard({
   tasks: initialTasks,
   days,
+  backlog: initialBacklog,
 }: {
   tasks: VzletTask[];
   days: VzletDay[];
+  backlog: VzletBacklogItem[];
 }) {
   const [tasks, setTasks] = useState<VzletTask[]>(initialTasks);
-  const [dialog, setDialog] = useState<"today" | "tomorrow" | null>(null);
+  const [backlog, setBacklog] = useState<VzletBacklogItem[]>(initialBacklog);
+  const [dialog, setDialog] = useState<
+    "today" | "tomorrow" | "backlog" | "backlogAdd" | null
+  >(null);
   const [rename, setRename] = useState<{ id: string; value: string } | null>(
     null
   );
@@ -232,6 +246,11 @@ export default function VzletBoard({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTasks(initialTasks);
   }, [initialTasks]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setBacklog(initialBacklog);
+  }, [initialBacklog]);
 
   const now = new Date();
   const todayStr = localDateStr(now);
@@ -408,7 +427,7 @@ export default function VzletBoard({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 p-6 pt-3">
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 pb-6 pt-3 sm:px-6">
         {/* glava — poravnana na vrh (gumb menija je nad zavihki, ne nad vsebino) */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
@@ -417,7 +436,8 @@ export default function VzletBoard({
               Vzlet
             </h1>
           </div>
-          <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+          {/* 50/50, čez celotno širino vsebine */}
+          <div className="grid flex-shrink-0 grid-cols-2 gap-2">
             <Button variant="secondary" onClick={() => setDialog("today")}>
               <IconPlus />
               Dodatna naloga
@@ -425,6 +445,31 @@ export default function VzletBoard({
             <Button onClick={() => setDialog("tomorrow")}>
               <IconPlus />
               Cilji za jutri
+            </Button>
+          </div>
+          {/* seznam čez preostanek vrstice, desno ob njem gumb za dodajanje */}
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setDialog("backlog")}
+              className="flex-1"
+            >
+              <IconList />
+              Splošni seznam opravil
+              {backlog.length > 0 && (
+                <span className="text-gray-400 dark:text-gray-500">
+                  ({backlog.length})
+                </span>
+              )}
+            </Button>
+            <Button
+              variant="secondary"
+              aria-label="Dodaj na splošni seznam"
+              title="Dodaj na splošni seznam"
+              onClick={() => setDialog("backlogAdd")}
+              className="flex-shrink-0"
+            >
+              <IconPlus />
             </Button>
           </div>
         </div>
@@ -594,6 +639,20 @@ export default function VzletBoard({
         tasks={todayTasks}
         onAdd={(title) => addVzletTaskAction(title, todayStr)}
         onDelete={handleDelete}
+      />
+      <VzletBacklogDialog
+        open={dialog === "backlog" || dialog === "backlogAdd"}
+        mode={dialog === "backlogAdd" ? "add" : "list"}
+        onClose={() => setDialog(null)}
+        items={backlog}
+        onAdd={addBacklogAction}
+        onMove={(id, when) =>
+          moveBacklogToDayAction(id, when === "today" ? todayStr : tomorrowStr)
+        }
+        onDelete={(id) => {
+          setBacklog((prev) => prev.filter((b) => b.id !== id));
+          startTransition(() => deleteBacklogAction(id));
+        }}
       />
       <PromptDialog
         open={rename !== null}

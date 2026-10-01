@@ -379,6 +379,64 @@ export async function deletePenaltyPoolAction(id: string): Promise<void> {
   revalidatePath("/", "layout");
 }
 
+// ===== Splošni seznam opravil (backlog) =====
+
+async function nextBacklogPosition(supabase: Supa): Promise<number> {
+  const { data } = await supabase
+    .from("pisi_vzlet_backlog")
+    .select("position")
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data?.position ?? 0) + 1;
+}
+
+export async function addBacklogAction(title: string): Promise<VzletFormState> {
+  const clean = title.trim();
+  if (!clean) return { error: "Opravilo ne sme biti prazno." };
+
+  const supabase = await createClient();
+  const position = await nextBacklogPosition(supabase);
+  const { error } = await supabase
+    .from("pisi_vzlet_backlog")
+    .insert({ title: clean.slice(0, 500), position });
+
+  if (error) return { error: "Napaka pri dodajanju: " + error.message };
+  revalidatePath("/", "layout");
+  return {};
+}
+
+export async function deleteBacklogAction(id: string): Promise<void> {
+  const supabase = await createClient();
+  await supabase.from("pisi_vzlet_backlog").delete().eq("id", id);
+  revalidatePath("/", "layout");
+}
+
+/**
+ * Prestavi opravilo s splošnega seznama med opravila za `forDate` (danes ali
+ * jutri). Za točkovanje velja enako kot pri ročnem dodajanju: prestavljeno
+ * za danes je "dodatna naloga" (+1), za jutri pa vnaprej načrtovano (core).
+ */
+export async function moveBacklogToDayAction(
+  id: string,
+  forDate: string
+): Promise<VzletFormState> {
+  const supabase = await createClient();
+  const { data: item } = await supabase
+    .from("pisi_vzlet_backlog")
+    .select("title")
+    .eq("id", id)
+    .maybeSingle();
+  if (!item) return { error: "Opravila ni več na seznamu." };
+
+  const res = await addVzletTaskAction(item.title, forDate);
+  if (res.error) return res;
+
+  await supabase.from("pisi_vzlet_backlog").delete().eq("id", id);
+  revalidatePath("/", "layout");
+  return {};
+}
+
 // ===== Deljenje dnevnih ciljev =====
 
 /** Vklopi/izklopi deljenje. Vrne dejansko shranjeno stanje. */

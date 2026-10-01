@@ -127,13 +127,19 @@ export default function VzletPlanDialog({
             e.preventDefault();
             submit();
           }}
-          className="flex gap-2"
+          // Na telefonu je vnos besedila v svoji vrstici, pod njim težavnost
+          // in gumb; od `sm` naprej vse v eni vrstici.
+          className={clsx(
+            "flex gap-2",
+            mode === "tomorrow" && "flex-wrap sm:flex-nowrap"
+          )}
         >
           <Input
             autoFocus
             value={value}
             placeholder="Kaj želiš narediti?"
             onChange={(e) => setValue(e.target.value)}
+            className={clsx(mode === "tomorrow" && "basis-full sm:basis-auto")}
           />
           {mode === "tomorrow" && (
             <Input
@@ -143,11 +149,11 @@ export default function VzletPlanDialog({
               max={10}
               step={1}
               value={difficulty}
-              placeholder="1–10"
+              placeholder="Težavnost 1–10"
               title="Težavnost (neobvezno, 1–10)"
               aria-label="Težavnost (neobvezno, 1–10)"
               onChange={(e) => setDifficulty(e.target.value)}
-              className="w-20 flex-shrink-0"
+              className="min-w-0 flex-1 sm:w-36 sm:flex-none"
             />
           )}
           <Button type="submit" disabled={pending} className="flex-shrink-0">

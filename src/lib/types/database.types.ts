@@ -127,6 +127,30 @@ export type Database = {
           created_at?: string;
         };
       };
+      pisi_vzlet_backlog: {
+        Relationships: [];
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          position: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          title: string;
+          position?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          position?: number;
+          created_at?: string;
+        };
+      };
       pisi_vzlet_sharing: {
         Relationships: [];
         Row: {
@@ -174,6 +198,10 @@ export type VzletPenaltyItemInsert =
   Database["public"]["Tables"]["pisi_vzlet_penalty_pool"]["Insert"];
 export type VzletPenaltyItemUpdate =
   Database["public"]["Tables"]["pisi_vzlet_penalty_pool"]["Update"];
+
+// Opravilo na splošnem seznamu (brez datuma).
+export type VzletBacklogItem =
+  Database["public"]["Tables"]["pisi_vzlet_backlog"]["Row"];
 
 export type VzletSharing =
   Database["public"]["Tables"]["pisi_vzlet_sharing"]["Row"];

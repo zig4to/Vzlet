@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Database,
+  VzletBacklogItem,
   VzletDay,
   VzletPenaltyItem,
   VzletSharedTask,
@@ -78,6 +79,26 @@ export async function getPenaltyPool(
     .order("created_at", { ascending: true });
 
   if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Uporabnikov splošni seznam opravil (brez datuma). Ob napaki (npr. še ne
+ * pognana migracija 0010) vrne prazen seznam, da stran Misije ne pade.
+ */
+export async function getVzletBacklog(
+  supabase: TypedSupabaseClient
+): Promise<VzletBacklogItem[]> {
+  const { data, error } = await supabase
+    .from("pisi_vzlet_backlog")
+    .select("*")
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Branje splošnega seznama ni uspelo:", error);
+    return [];
+  }
   return data ?? [];
 }
 
