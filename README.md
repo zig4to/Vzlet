@@ -40,7 +40,7 @@ nato `0002_dons_tasks.sql`, `0003_rename_dons_to_vzlet.sql`,
 ## Zagon
 
 ```bash
-npm run dev      # http://localhost:3000
+npm run dev      # http://localhost:3004
 npm run lint
 npm run build
 ```
