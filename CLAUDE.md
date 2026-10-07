@@ -91,7 +91,9 @@ sinhronizacija kot poravnava preteklih dni):
   odkljukana** — neodvisno od tega, ali je vse ostalo že opravljeno
   (spodbuja načrtovanje dan prej namesto dodajanja na hitro).
 - Zamujen (pretekel, nedokončan) dan je vedno vreden -125 — to se ugotovi
-  šele ob poravnavi (glej spodaj), nikoli živo med dnevom.
+  šele ob poravnavi (glej spodaj), nikoli živo med dnevom. Zamujen je lahko
+  **samo dan z vsaj enim core opravilom** (`hasCore`); dan s samimi kasneje
+  dodanimi nalogami obdrži svoje +1 bonuse in ne prinese kazni.
 
 **Sprotna sinhronizacija** (`syncTodayPointsAction` v `src/actions/
 vzlet.ts`): `VzletBoard.tsx` ima `useEffect`, ki ob vsaki spremembi

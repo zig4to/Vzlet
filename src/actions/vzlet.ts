@@ -234,7 +234,11 @@ export async function settleVzletAction(
   for (const [day, dayTasks] of byDay) {
     if (dayTasks.length < 1 || alreadyFinal.has(day)) continue;
     const live = liveDayPoints(dayTasks);
-    const points = live.allDone ? live.points : -125;
+    // Zamujen je samo dan z vnaprej načrtovanimi (core) opravili, ki niso
+    // bila vsa opravljena. Dan s samimi dodatnimi nalogami obdrži svoje
+    // bonus točke in ne prinese kazni.
+    const missed = live.hasCore && !live.allDone;
+    const points = missed ? -125 : live.points;
     rows.push({
       user_id: user.id,
       day,
@@ -245,7 +249,7 @@ export async function settleVzletAction(
       tasks_snapshot: buildSnapshot(dayTasks),
       settled_at: settledAt,
     });
-    if (!live.allDone) missedDays += 1;
+    if (missed) missedDays += 1;
   }
 
   if (rows.length > 0) {

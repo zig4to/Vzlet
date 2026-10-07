@@ -75,6 +75,12 @@ export type LiveDayPoints = {
   tasksTotal: number;
   tasksDone: number;
   allDone: boolean;
+  /**
+   * Dan je bil načrtovan vnaprej (ima vsaj eno core opravilo). Samo tak dan
+   * je lahko ob poravnavi "zamujen" (-125 + kazen) — dan s samimi dodatnimi
+   * nalogami ni bil nikoli načrtovan, zato ga ne kaznujemo.
+   */
+  hasCore: boolean;
 };
 
 /**
@@ -86,7 +92,8 @@ export type LiveDayPoints = {
  * stanje core seznama. Brez core opravil dan ne more biti "uspešen"
  * (`allDone = false`, glej spodaj). Uporablja se tako za živo sprotno stanje
  * danes (`syncTodayPointsAction`) kot za poravnavo preteklih dni
- * (`settleVzletAction`, kjer se `points` ob `!allDone` nadomesti z -125).
+ * (`settleVzletAction`, kjer se `points` ob `hasCore && !allDone` nadomesti
+ * z -125).
  */
 export function liveDayPoints(
   tasks: {
@@ -124,6 +131,7 @@ export function liveDayPoints(
     tasksTotal,
     tasksDone,
     allDone: coreAllDone,
+    hasCore: core.length > 0,
   };
 }
 
