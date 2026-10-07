@@ -31,6 +31,7 @@ export type Database = {
           position: number;
           is_penalty: boolean;
           difficulty: number | null;
+          routine_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -44,6 +45,7 @@ export type Database = {
           position?: number;
           is_penalty?: boolean;
           difficulty?: number | null;
+          routine_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -57,6 +59,7 @@ export type Database = {
           position?: number;
           is_penalty?: boolean;
           difficulty?: number | null;
+          routine_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -158,6 +161,7 @@ export type Database = {
           user_id: string;
           title: string;
           valid_until: string;
+          generated_until: string | null;
           position: number;
           created_at: string;
         };
@@ -166,6 +170,7 @@ export type Database = {
           user_id?: string;
           title: string;
           valid_until: string;
+          generated_until?: string | null;
           position?: number;
           created_at?: string;
         };
@@ -174,6 +179,7 @@ export type Database = {
           user_id?: string;
           title?: string;
           valid_until?: string;
+          generated_until?: string | null;
           position?: number;
           created_at?: string;
         };

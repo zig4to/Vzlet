@@ -28,7 +28,6 @@ type VzletBacklogDialogProps = {
   onDelete: (id: string) => void;
   /** Odpre ločeno okno za dodajanje rutinskega opravila. */
   onAddRoutine: () => void;
-  onRoutineToDay: (id: string, when: When) => Result;
   onDeleteRoutine: (id: string) => void;
 };
 
@@ -41,7 +40,8 @@ function formatDate(s: string): string {
 /**
  * Seznam opravil s preklopom med splošnim (opravila brez datuma — ob
  * prestavitvi se odstranijo) in rutinskim seznamom (opravila z rokom
- * veljavnosti — ob dodajanju na dan ostanejo na seznamu). Klik na opravilo
+ * veljavnosti — med naloge se dodajajo sama, glej `generateRoutineTasks`;
+ * tu jih je mogoče le izbrisati). Klik na opravilo
  * razpre mini meni pod njim (Danes / Jutri / Izbriši) — namesto plavajočega
  * menija, ker ga `Modal` (`overflow-hidden`) ob spodnjem robu odreže.
  */
@@ -55,14 +55,12 @@ export default function VzletBacklogDialog({
   onMove,
   onDelete,
   onAddRoutine,
-  onRoutineToDay,
   onDeleteRoutine,
 }: VzletBacklogDialogProps) {
   const [kind, setKind] = useState<ListKind>("general");
   const [value, setValue] = useState("");
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -72,7 +70,6 @@ export default function VzletBacklogDialog({
     setValue("");
     setLastAdded(null);
     setSelected(null);
-    setNotice(null);
     setError(null);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open]);
@@ -95,18 +92,11 @@ export default function VzletBacklogDialog({
     });
   };
 
-  const move = (id: string, title: string, when: When) => {
+  const move = (id: string, when: When) => {
     setSelected(null);
-    setNotice(null);
     startTransition(async () => {
-      const res =
-        kind === "general" ? await onMove(id, when) : await onRoutineToDay(id, when);
+      const res = await onMove(id, when);
       setError(res?.error ?? null);
-      if (!res?.error && kind === "routine") {
-        setNotice(
-          `„${title}“ dodano ${when === "today" ? "med današnje naloge" : "v cilje za jutri"}.`
-        );
-      }
     });
   };
 
@@ -146,7 +136,6 @@ export default function VzletBacklogDialog({
                   onClick={() => {
                     setKind(k);
                     setSelected(null);
-                    setNotice(null);
                     setError(null);
                   }}
                   className={clsx(
@@ -169,7 +158,7 @@ export default function VzletBacklogDialog({
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {kind === "general"
                 ? "Opravila brez datuma. Klikni na opravilo in ga prestavi med današnje naloge ali v cilje za jutri."
-                : "Ponavljajoča se opravila. Klikni na opravilo in ga dodaj med današnje naloge ali v cilje za jutri — na seznamu ostane do izteka veljavnosti."}
+                : "Ponavljajoča se opravila. Do izteka veljavnosti se vsak dan sama dodajo med naloge (in v cilje za jutri)."}
             </p>
 
             {list.length > 0 ? (
@@ -201,28 +190,38 @@ export default function VzletBacklogDialog({
                       </button>
                       {isOpen && (
                         <div className="flex flex-wrap gap-2 border-t border-gray-200 px-3 py-2 dark:border-gray-800">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            disabled={pending}
-                            onClick={() => move(item.id, item.title, "today")}
-                          >
-                            Danes
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            disabled={pending}
-                            onClick={() => move(item.id, item.title, "tomorrow")}
-                          >
-                            Jutri
-                          </Button>
+                          {kind === "general" && (
+                            <>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                disabled={pending}
+                                onClick={() => move(item.id, "today")}
+                              >
+                                Danes
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                disabled={pending}
+                                onClick={() => move(item.id, "tomorrow")}
+                              >
+                                Jutri
+                              </Button>
+                            </>
+                          )}
                           <Button
                             type="button"
                             variant="danger"
                             disabled={pending}
                             onClick={() => {
-                              if (confirm(`Izbrišem „${item.title}“?`)) {
+                              if (
+                                confirm(
+                                  kind === "general"
+                                    ? `Izbrišem „${item.title}“?`
+                                    : `Izbrišem rutino „${item.title}“? Njene neopravljene naloge za danes in jutri se odstranijo.`
+                                )
+                              ) {
                                 setSelected(null);
                                 if (kind === "general") onDelete(item.id);
                                 else onDeleteRoutine(item.id);
@@ -243,11 +242,6 @@ export default function VzletBacklogDialog({
                 {kind === "general"
                   ? "Seznam je prazen — opravila dodaš z gumbom +."
                   : "Ni veljavnih rutinskih opravil — dodaš jih z gumbom + in nato „Dodaj novo rutinsko opravilo“."}
-              </p>
-            )}
-            {notice && !error && (
-              <p className="text-sm text-green-600 dark:text-green-400">
-                {notice}
               </p>
             )}
           </>

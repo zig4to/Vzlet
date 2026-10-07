@@ -19,8 +19,24 @@ const DURATIONS = [
   { key: "1y", label: "1 leto", months: 12 },
 ] as const;
 
-type DurationKey = (typeof DURATIONS)[number]["key"];
+type DurationKey = (typeof DURATIONS)[number]["key"] | "custom";
 const DEFAULT_DURATION: DurationKey = "1w";
+
+/** Enote za trajanje po meri. */
+const CUSTOM_UNITS = [
+  { key: "days", label: "dni" },
+  { key: "weeks", label: "tednov" },
+  { key: "months", label: "mesecev" },
+] as const;
+type CustomUnit = (typeof CUSTOM_UNITS)[number]["key"];
+const MAX_CUSTOM: Record<CustomUnit, number> = {
+  days: 730,
+  weeks: 104,
+  months: 24,
+};
+
+const SELECT_CLASSES =
+  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:[color-scheme:dark]";
 
 function localDateStr(d: Date): string {
   const y = d.getFullYear();
@@ -30,16 +46,35 @@ function localDateStr(d: Date): string {
 }
 
 /**
- * Zadnji dan veljavnosti (vključno): "1 dan" = samo danes, "1 teden" = danes
- * + 6 dni, "1 mesec" = dan pred istim datumom naslednji mesec.
+ * Zadnji dan veljavnosti (vključno): 1 dan = samo danes, 1 teden = danes
+ * + 6 dni, 1 mesec = dan pred istim datumom naslednji mesec.
  */
-function validUntilFor(key: DurationKey, from: Date): string {
-  const d = DURATIONS.find((x) => x.key === key)!;
+function validUntil(from: Date, days: number, months: number): string {
   const end = new Date(from);
-  if ("months" in d) end.setMonth(end.getMonth() + d.months);
-  else end.setDate(end.getDate() + d.days);
-  end.setDate(end.getDate() - 1);
+  end.setMonth(end.getMonth() + months);
+  end.setDate(end.getDate() + days - 1);
   return localDateStr(end);
+}
+
+function presetValidUntil(
+  key: Exclude<DurationKey, "custom">,
+  from: Date
+): string {
+  const d = DURATIONS.find((x) => x.key === key)!;
+  return "months" in d
+    ? validUntil(from, 0, d.months)
+    : validUntil(from, d.days, 0);
+}
+
+function customValidUntil(amount: number, unit: CustomUnit, from: Date): string {
+  if (unit === "months") return validUntil(from, 0, amount);
+  return validUntil(from, unit === "weeks" ? amount * 7 : amount, 0);
+}
+
+/** `YYYY-MM-DD` → `d. m. yyyy`. */
+function formatDate(s: string): string {
+  const [y, m, d] = s.split("-");
+  return `${Number(d)}. ${Number(m)}. ${y}`;
 }
 
 export default function VzletRoutineDialog({
@@ -53,6 +88,8 @@ export default function VzletRoutineDialog({
 }) {
   const [value, setValue] = useState("");
   const [duration, setDuration] = useState<DurationKey>(DEFAULT_DURATION);
+  const [customAmount, setCustomAmount] = useState("10");
+  const [customUnit, setCustomUnit] = useState<CustomUnit>("days");
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -62,10 +99,23 @@ export default function VzletRoutineDialog({
     /* eslint-disable react-hooks/set-state-in-effect */
     setValue("");
     setDuration(DEFAULT_DURATION);
+    setCustomAmount("10");
+    setCustomUnit("days");
     setLastAdded(null);
     setError(null);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open]);
+
+  const amount = Number(customAmount);
+  const customValid =
+    Number.isInteger(amount) && amount >= 1 && amount <= MAX_CUSTOM[customUnit];
+  // Izračun ob vsakem prikazu je poceni; `null` = neveljaven vnos po meri.
+  const until =
+    duration === "custom"
+      ? customValid
+        ? customValidUntil(amount, customUnit, new Date())
+        : null
+      : presetValidUntil(duration, new Date());
 
   const submit = () => {
     const trimmed = value.trim();
@@ -73,8 +123,14 @@ export default function VzletRoutineDialog({
       setError("Opravilo ne sme biti prazno.");
       return;
     }
+    if (!until) {
+      setError(
+        `Trajanje mora biti celo število med 1 in ${MAX_CUSTOM[customUnit]}.`
+      );
+      return;
+    }
     startTransition(async () => {
-      const res = await onAdd(trimmed, validUntilFor(duration, new Date()));
+      const res = await onAdd(trimmed, until);
       if (res?.error) {
         setError(res.error);
         return;
@@ -108,15 +164,48 @@ export default function VzletRoutineDialog({
             id="routine-duration"
             value={duration}
             onChange={(e) => setDuration(e.target.value as DurationKey)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:[color-scheme:dark]"
+            className={SELECT_CLASSES}
           >
             {DURATIONS.map((d) => (
               <option key={d.key} value={d.key}>
                 {d.label}
               </option>
             ))}
+            <option value="custom">Po meri …</option>
           </select>
         </Field>
+        {duration === "custom" && (
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={MAX_CUSTOM[customUnit]}
+              step={1}
+              aria-label="Trajanje"
+              value={customAmount}
+              onChange={(e) => setCustomAmount(e.target.value)}
+              className="w-24 flex-shrink-0"
+            />
+            <select
+              aria-label="Enota trajanja"
+              value={customUnit}
+              onChange={(e) => setCustomUnit(e.target.value as CustomUnit)}
+              className={SELECT_CLASSES}
+            >
+              {CUSTOM_UNITS.map((u) => (
+                <option key={u.key} value={u.key}>
+                  {u.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {until
+            ? `Velja do vključno ${formatDate(until)}.`
+            : `Vnesi celo število med 1 in ${MAX_CUSTOM[customUnit]}.`}
+        </p>
 
         {lastAdded && !error && (
           <p className="text-sm text-green-600 dark:text-green-400">

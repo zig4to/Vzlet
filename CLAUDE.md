@@ -56,7 +56,9 @@ datuma — `VzletBacklogDialog`; `moveBacklogToDayAction` ga prek
 `addVzletTaskAction` prestavi na danes (= dodatna naloga) ali jutri (= core)),
 `pisi_vzlet_routines` (rutinska opravila z `valid_until`, migracija `0011`;
 isti dialog s preklopom Splošni/Rutinski, dodajanje v `VzletRoutineDialog`;
-`addRoutineToDayAction` doda kopijo, rutina ostane; potekle skrije klient po
+kopije se ustvarijo same za danes+jutri v `generateRoutineTasks` (ob
+`settleVzletAction` in `addRoutineAction`; `pisi_vzlet_tasks.routine_id` +
+`generated_until`, migracija `0012`); potekle rutine skrije klient po
 lokalnem datumu). RLS povsod `user_id = auth.uid()` + dodatne
 "shared"-police za branje podatkov uporabnikov, ki imajo v
 `pisi_vzlet_sharing.shared = true` (glej `0005_vzlet_sharing.sql` za naloge,
@@ -88,7 +90,9 @@ sinhronizacija kot poravnava preteklih dni):
 - Opravilo je **"core"** (načrtovano vnaprej) ali **"kasneje dodano"**
   (`isLaterTask`: `created_at`-datum >= `for_date`, npr. dodano na hitro
   isti dan namesto dan prej prek "Cilji za jutri"). **Kazenska opravila
-  (`is_penalty`) so vedno core**, čeprav nastanejo isti dan.
+  (`is_penalty`) in kopije rutin (`routine_id`) so vedno core**, čeprav
+  nastanejo isti dan. Neopravljene pretekle kopije rutin se ob poravnavi
+  izbrišejo namesto prenesejo na danes.
 - Osnova **10 + vsota težavnosti core opravil** se prišteje šele, ko so
   **čisto vsa** opravila tega dne (core in kasneje dodana) odkljukana.
 - **Kasneje dodana opravila prispevajo +1 vsako posebej, takoj ko so

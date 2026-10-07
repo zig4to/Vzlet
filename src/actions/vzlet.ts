@@ -158,6 +158,7 @@ function buildSnapshot(
     difficulty: number | null;
     for_date: string;
     created_at: string;
+    routine_id: string | null;
   }[]
 ): VzletTaskSnapshotEntry[] {
   return dayTasks.map((t) => ({
@@ -193,7 +194,9 @@ export async function settleVzletAction(
   const [{ data: pastTasks }, { data: settledDays }] = await Promise.all([
     supabase
       .from("pisi_vzlet_tasks")
-      .select("title, for_date, done, is_penalty, difficulty, created_at")
+      .select(
+        "title, for_date, done, is_penalty, difficulty, created_at, routine_id"
+      )
       .eq("user_id", user.id)
       .lt("for_date", todayStr),
     supabase
@@ -282,6 +285,17 @@ export async function settleVzletAction(
     }
   }
 
+  // Neopravljene pretekle kopije rutin se ne prenašajo — dan je zanje že
+  // poravnan, rutina pa ima za danes svojo kopijo (prenos bi tudi kršil
+  // unikatnost `routine_id, for_date` in s tem podrl celoten UPDATE spodaj).
+  await supabase
+    .from("pisi_vzlet_tasks")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("done", false)
+    .lt("for_date", todayStr)
+    .not("routine_id", "is", null);
+
   // Prenos neopravljenih preteklih opravil na danes.
   await supabase
     .from("pisi_vzlet_tasks")
@@ -289,6 +303,8 @@ export async function settleVzletAction(
     .eq("user_id", user.id)
     .eq("done", false)
     .lt("for_date", todayStr);
+
+  await generateRoutineTasks(supabase, user.id, todayStr);
 
   revalidatePath("/", "layout");
   return { missedDays, penaltyAdded };
@@ -310,7 +326,7 @@ export async function syncTodayPointsAction(todayStr: string): Promise<void> {
 
   const { data: todayTasks } = await supabase
     .from("pisi_vzlet_tasks")
-    .select("title, done, created_at, for_date, is_penalty, difficulty")
+    .select("title, done, created_at, for_date, is_penalty, difficulty, routine_id")
     .eq("user_id", user.id)
     .eq("for_date", todayStr);
 
@@ -448,49 +464,110 @@ async function nextRoutinePosition(supabase: Supa): Promise<number> {
   return (data?.position ?? 0) + 1;
 }
 
-/** `validUntil` = zadnji dan veljavnosti (`YYYY-MM-DD`, lokalni čas klienta). */
+/** `YYYY-MM-DD` + `n` dni (koledarsko, brez časovnih pasov). */
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Samodejno doda kopije veljavnih rutin med opravila za danes in jutri
+ * (jutrišnja kopija je tako že "cilj za jutri"). Kopije imajo `routine_id`
+ * in zato vedno štejejo kot core (`isLaterTask`). `generated_until` si
+ * zapomni zadnji že ustvarjeni dan, da se ročno izbrisana kopija ne vrne;
+ * unikatni indeks `routine_id, for_date` + `ignoreDuplicates` pa varuje
+ * pred podvojitvami ob hkratnih klicih (npr. dva odprta zavihka).
+ */
+async function generateRoutineTasks(
+  supabase: Supa,
+  userId: string,
+  todayStr: string
+): Promise<void> {
+  const { data: routines } = await supabase
+    .from("pisi_vzlet_routines")
+    .select("id, title, valid_until, generated_until")
+    .eq("user_id", userId)
+    .gte("valid_until", todayStr);
+  if (!routines || routines.length === 0) return;
+
+  const tomorrowStr = addDays(todayStr, 1);
+  const positions = new Map<string, number>();
+  for (const r of routines) {
+    const from =
+      r.generated_until && r.generated_until >= todayStr
+        ? addDays(r.generated_until, 1)
+        : todayStr;
+    const to = r.valid_until < tomorrowStr ? r.valid_until : tomorrowStr;
+    if (from > to) continue;
+
+    const rows = [];
+    for (let d = from; d <= to; d = addDays(d, 1)) {
+      const pos =
+        positions.get(d) ?? (await nextVzletPosition(supabase, userId, d));
+      positions.set(d, pos + 1);
+      rows.push({ title: r.title, for_date: d, routine_id: r.id, position: pos });
+    }
+    const { error } = await supabase
+      .from("pisi_vzlet_tasks")
+      .upsert(rows, { onConflict: "routine_id,for_date", ignoreDuplicates: true });
+    if (error) continue;
+    await supabase
+      .from("pisi_vzlet_routines")
+      .update({ generated_until: to })
+      .eq("id", r.id);
+  }
+}
+
+/**
+ * `validUntil` = zadnji dan veljavnosti, `todayStr` = današnji datum —
+ * oba `YYYY-MM-DD` v lokalnem času klienta. Kopija za danes (in jutri) se
+ * doda takoj.
+ */
 export async function addRoutineAction(
   title: string,
-  validUntil: string
+  validUntil: string,
+  todayStr: string
 ): Promise<VzletFormState> {
   const clean = title.trim();
   if (!clean) return { error: "Opravilo ne sme biti prazno." };
-  if (!DATE_RE.test(validUntil)) return { error: "Neveljaven datum." };
+  if (!DATE_RE.test(validUntil) || !DATE_RE.test(todayStr)) {
+    return { error: "Neveljaven datum." };
+  }
 
   const supabase = await createClient();
+  const user = await getAuthUser(supabase);
+  if (!user) return { error: "Nisi prijavljen." };
   const position = await nextRoutinePosition(supabase);
   const { error } = await supabase
     .from("pisi_vzlet_routines")
     .insert({ title: clean.slice(0, 500), valid_until: validUntil, position });
 
   if (error) return { error: "Napaka pri dodajanju: " + error.message };
+  await generateRoutineTasks(supabase, user.id, todayStr);
   revalidatePath("/", "layout");
   return {};
 }
 
-export async function deleteRoutineAction(id: string): Promise<void> {
+/**
+ * Izbriše rutino in njene še neopravljene kopije od `todayStr` naprej;
+ * opravljene in pretekle kopije ostanejo (z `routine_id = null`).
+ */
+export async function deleteRoutineAction(
+  id: string,
+  todayStr: string
+): Promise<void> {
   const supabase = await createClient();
+  if (DATE_RE.test(todayStr)) {
+    await supabase
+      .from("pisi_vzlet_tasks")
+      .delete()
+      .eq("routine_id", id)
+      .eq("done", false)
+      .gte("for_date", todayStr);
+  }
   await supabase.from("pisi_vzlet_routines").delete().eq("id", id);
   revalidatePath("/", "layout");
-}
-
-/**
- * Doda kopijo rutinskega opravila med opravila za `forDate`. Rutina sama
- * ostane na seznamu (za razliko od `moveBacklogToDayAction`).
- */
-export async function addRoutineToDayAction(
-  id: string,
-  forDate: string
-): Promise<VzletFormState> {
-  const supabase = await createClient();
-  const { data: item } = await supabase
-    .from("pisi_vzlet_routines")
-    .select("title")
-    .eq("id", id)
-    .maybeSingle();
-  if (!item) return { error: "Opravila ni več na seznamu." };
-
-  return addVzletTaskAction(item.title, forDate);
 }
 
 // ===== Deljenje dnevnih ciljev =====

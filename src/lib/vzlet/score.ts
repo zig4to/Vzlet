@@ -46,15 +46,20 @@ export function isSameDayAdded(
 }
 
 /**
- * Ali opravilo šteje kot "kasneje dodano" (bonus +1). Kazenska opravila so
- * vedno "core" — čeprav nastanejo isti dan, morajo biti opravljena, da je
- * dan uspešen (sicer bi bil dan s samimi kaznimi vedno zamujen).
+ * Ali opravilo šteje kot "kasneje dodano" (bonus +1). Kazenska opravila in
+ * samodejne kopije rutin (`routine_id`) so vedno "core" — čeprav nastanejo
+ * isti dan, morajo biti opravljena, da je dan uspešen (sicer bi bil dan s
+ * samimi kaznimi vedno zamujen, rutina pa bi bila le bonus).
  */
 export function isLaterTask(
-  task: { is_penalty: boolean; for_date: string },
+  task: { is_penalty: boolean; for_date: string; routine_id: string | null },
   createdAtDateStr: string
 ): boolean {
-  return !task.is_penalty && isSameDayAdded(createdAtDateStr, task.for_date);
+  return (
+    !task.is_penalty &&
+    task.routine_id == null &&
+    isSameDayAdded(createdAtDateStr, task.for_date)
+  );
 }
 
 /**
@@ -64,7 +69,12 @@ export function isLaterTask(
  * po svoji oceni (`difficulty`, manjkajoča = 0).
  */
 export function effectiveTaskPoints(
-  task: { is_penalty: boolean; for_date: string; difficulty: number | null },
+  task: {
+    is_penalty: boolean;
+    for_date: string;
+    routine_id: string | null;
+    difficulty: number | null;
+  },
   createdAtDateStr: string
 ): number {
   return isLaterTask(task, createdAtDateStr) ? 1 : task.difficulty ?? 0;
@@ -102,6 +112,7 @@ export function liveDayPoints(
     created_at: string;
     difficulty: number | null;
     is_penalty: boolean;
+    routine_id: string | null;
   }[]
 ): LiveDayPoints {
   const tasksTotal = tasks.length;

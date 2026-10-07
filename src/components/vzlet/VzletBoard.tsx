@@ -11,7 +11,6 @@ import type {
 import {
   addBacklogAction,
   addRoutineAction,
-  addRoutineToDayAction,
   addVzletTaskAction,
   deleteBacklogAction,
   deleteRoutineAction,
@@ -670,18 +669,17 @@ export default function VzletBoard({
           startTransition(() => deleteBacklogAction(id));
         }}
         onAddRoutine={() => setDialog("routineAdd")}
-        onRoutineToDay={(id, when) =>
-          addRoutineToDayAction(id, when === "today" ? todayStr : tomorrowStr)
-        }
         onDeleteRoutine={(id) => {
           setRoutines((prev) => prev.filter((r) => r.id !== id));
-          startTransition(() => deleteRoutineAction(id));
+          startTransition(() => deleteRoutineAction(id, todayStr));
         }}
       />
       <VzletRoutineDialog
         open={dialog === "routineAdd"}
         onClose={() => setDialog(null)}
-        onAdd={addRoutineAction}
+        onAdd={(title, validUntil) =>
+          addRoutineAction(title, validUntil, todayStr)
+        }
       />
       <PromptDialog
         open={rename !== null}
