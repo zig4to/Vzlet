@@ -18,14 +18,20 @@ import {
   IconX,
 } from "@/components/ui/icons";
 import IntroDialog from "@/components/vzlet/IntroDialog";
+import {
+  OthersGoalsMenuItem,
+  SharedGoalsDialog,
+} from "@/components/vzlet/OthersGoals";
+import type { VzletSharer } from "@/lib/types/database.types";
 
-// Meni aplikacije Vzlet v zgornji vrstici: navigacija, deljenje ciljev,
-// predstavitev, nastavitve in odjava.
+// Meni aplikacije Vzlet v zgornji vrstici: navigacija, cilji drugih,
+// deljenje ciljev, predstavitev, nastavitve in odjava.
 export default function VzletMenu({ email }: { email: string | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(false);
   const [shared, setShared] = useState<boolean | null>(null);
+  const [viewing, setViewing] = useState<VzletSharer | null>(null);
   const [, startShare] = useTransition();
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -118,6 +124,13 @@ export default function VzletMenu({ email }: { email: string | null }) {
 
           <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
 
+          <OthersGoalsMenuItem
+            onPick={(s) => {
+              setOpen(false);
+              setViewing(s);
+            }}
+          />
+
           <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
             <input
               type="checkbox"
@@ -163,6 +176,7 @@ export default function VzletMenu({ email }: { email: string | null }) {
         </div>
       )}
 
+      <SharedGoalsDialog sharer={viewing} onClose={() => setViewing(null)} />
       <IntroDialog
         open={introOpen}
         onClose={() => setIntroOpen(false)}

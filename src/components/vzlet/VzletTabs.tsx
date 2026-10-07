@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "@/lib/utils/clsx";
 import { IconRocket, IconTrendingUp, IconTrophy } from "@/components/ui/icons";
-import OthersGoals from "@/components/vzlet/OthersGoals";
 
 const TABS = [
   { href: "/", label: "Misije", icon: <IconRocket /> },
@@ -35,9 +34,6 @@ export default function VzletTabs() {
           </Link>
         );
       })}
-      <div className="flex items-center">
-        <OthersGoals />
-      </div>
     </div>
   );
 }
