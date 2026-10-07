@@ -436,6 +436,63 @@ export async function moveBacklogToDayAction(
   return {};
 }
 
+// ===== Rutinski seznam opravil =====
+
+async function nextRoutinePosition(supabase: Supa): Promise<number> {
+  const { data } = await supabase
+    .from("pisi_vzlet_routines")
+    .select("position")
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data?.position ?? 0) + 1;
+}
+
+/** `validUntil` = zadnji dan veljavnosti (`YYYY-MM-DD`, lokalni čas klienta). */
+export async function addRoutineAction(
+  title: string,
+  validUntil: string
+): Promise<VzletFormState> {
+  const clean = title.trim();
+  if (!clean) return { error: "Opravilo ne sme biti prazno." };
+  if (!DATE_RE.test(validUntil)) return { error: "Neveljaven datum." };
+
+  const supabase = await createClient();
+  const position = await nextRoutinePosition(supabase);
+  const { error } = await supabase
+    .from("pisi_vzlet_routines")
+    .insert({ title: clean.slice(0, 500), valid_until: validUntil, position });
+
+  if (error) return { error: "Napaka pri dodajanju: " + error.message };
+  revalidatePath("/", "layout");
+  return {};
+}
+
+export async function deleteRoutineAction(id: string): Promise<void> {
+  const supabase = await createClient();
+  await supabase.from("pisi_vzlet_routines").delete().eq("id", id);
+  revalidatePath("/", "layout");
+}
+
+/**
+ * Doda kopijo rutinskega opravila med opravila za `forDate`. Rutina sama
+ * ostane na seznamu (za razliko od `moveBacklogToDayAction`).
+ */
+export async function addRoutineToDayAction(
+  id: string,
+  forDate: string
+): Promise<VzletFormState> {
+  const supabase = await createClient();
+  const { data: item } = await supabase
+    .from("pisi_vzlet_routines")
+    .select("title")
+    .eq("id", id)
+    .maybeSingle();
+  if (!item) return { error: "Opravila ni več na seznamu." };
+
+  return addVzletTaskAction(item.title, forDate);
+}
+
 // ===== Deljenje dnevnih ciljev =====
 
 /** Vklopi/izklopi deljenje. Vrne dejansko shranjeno stanje. */

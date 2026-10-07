@@ -5,6 +5,7 @@ import type {
   VzletBacklogItem,
   VzletDay,
   VzletPenaltyItem,
+  VzletRoutine,
   VzletSharedTask,
   VzletSharer,
   VzletTask,
@@ -94,6 +95,27 @@ export async function getVzletBacklog(
 
   if (error) {
     console.error("Branje splošnega seznama ni uspelo:", error);
+    return [];
+  }
+  return data ?? [];
+}
+
+/**
+ * Uporabnikova rutinska opravila (tudi že potekla — filtrira jih klient po
+ * lokalnem datumu). Ob napaki (npr. še ne pognana migracija 0011) vrne
+ * prazen seznam, da stran Misije ne pade.
+ */
+export async function getVzletRoutines(
+  supabase: TypedSupabaseClient
+): Promise<VzletRoutine[]> {
+  const { data, error } = await supabase
+    .from("pisi_vzlet_routines")
+    .select("*")
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Branje rutinskega seznama ni uspelo:", error);
     return [];
   }
   return data ?? [];

@@ -5,12 +5,16 @@ import clsx from "@/lib/utils/clsx";
 import type {
   VzletBacklogItem,
   VzletDay,
+  VzletRoutine,
   VzletTask,
 } from "@/lib/types/database.types";
 import {
   addBacklogAction,
+  addRoutineAction,
+  addRoutineToDayAction,
   addVzletTaskAction,
   deleteBacklogAction,
+  deleteRoutineAction,
   deleteVzletTaskAction,
   moveBacklogToDayAction,
   renameVzletTaskAction,
@@ -41,6 +45,7 @@ import Fireworks from "@/components/vzlet/Fireworks";
 import Crash from "@/components/vzlet/Crash";
 import VzletPlanDialog from "@/components/vzlet/VzletPlanDialog";
 import VzletBacklogDialog from "@/components/vzlet/VzletBacklogDialog";
+import VzletRoutineDialog from "@/components/vzlet/VzletRoutineDialog";
 
 function localDateStr(d: Date): string {
   const y = d.getFullYear();
@@ -209,15 +214,18 @@ export default function VzletBoard({
   tasks: initialTasks,
   days,
   backlog: initialBacklog,
+  routines: initialRoutines,
 }: {
   tasks: VzletTask[];
   days: VzletDay[];
   backlog: VzletBacklogItem[];
+  routines: VzletRoutine[];
 }) {
   const [tasks, setTasks] = useState<VzletTask[]>(initialTasks);
   const [backlog, setBacklog] = useState<VzletBacklogItem[]>(initialBacklog);
+  const [routines, setRoutines] = useState<VzletRoutine[]>(initialRoutines);
   const [dialog, setDialog] = useState<
-    "today" | "tomorrow" | "backlog" | "backlogAdd" | null
+    "today" | "tomorrow" | "backlog" | "backlogAdd" | "routineAdd" | null
   >(null);
   const [rename, setRename] = useState<{ id: string; value: string } | null>(
     null
@@ -252,11 +260,18 @@ export default function VzletBoard({
     setBacklog(initialBacklog);
   }, [initialBacklog]);
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRoutines(initialRoutines);
+  }, [initialRoutines]);
+
   const now = new Date();
   const todayStr = localDateStr(now);
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = localDateStr(tomorrow);
+  // Potekle rutine (rok pred današnjim lokalnim datumom) skrijemo.
+  const activeRoutines = routines.filter((r) => r.valid_until >= todayStr);
 
   // Zaključi pretekle dneve (točke + kazni) in prenesi neopravljena na danes —
   // enkrat na prikaz.
@@ -455,10 +470,10 @@ export default function VzletBoard({
               className="flex-1"
             >
               <IconList />
-              Splošni seznam opravil
-              {backlog.length > 0 && (
+              Seznam opravil
+              {backlog.length + activeRoutines.length > 0 && (
                 <span className="text-gray-400 dark:text-gray-500">
-                  ({backlog.length})
+                  ({backlog.length + activeRoutines.length})
                 </span>
               )}
             </Button>
@@ -645,6 +660,7 @@ export default function VzletBoard({
         mode={dialog === "backlogAdd" ? "add" : "list"}
         onClose={() => setDialog(null)}
         items={backlog}
+        routines={activeRoutines}
         onAdd={addBacklogAction}
         onMove={(id, when) =>
           moveBacklogToDayAction(id, when === "today" ? todayStr : tomorrowStr)
@@ -653,6 +669,19 @@ export default function VzletBoard({
           setBacklog((prev) => prev.filter((b) => b.id !== id));
           startTransition(() => deleteBacklogAction(id));
         }}
+        onAddRoutine={() => setDialog("routineAdd")}
+        onRoutineToDay={(id, when) =>
+          addRoutineToDayAction(id, when === "today" ? todayStr : tomorrowStr)
+        }
+        onDeleteRoutine={(id) => {
+          setRoutines((prev) => prev.filter((r) => r.id !== id));
+          startTransition(() => deleteRoutineAction(id));
+        }}
+      />
+      <VzletRoutineDialog
+        open={dialog === "routineAdd"}
+        onClose={() => setDialog(null)}
+        onAdd={addRoutineAction}
       />
       <PromptDialog
         open={rename !== null}

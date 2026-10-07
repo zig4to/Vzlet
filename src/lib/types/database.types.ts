@@ -151,6 +151,33 @@ export type Database = {
           created_at?: string;
         };
       };
+      pisi_vzlet_routines: {
+        Relationships: [];
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          valid_until: string;
+          position: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          title: string;
+          valid_until: string;
+          position?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          valid_until?: string;
+          position?: number;
+          created_at?: string;
+        };
+      };
       pisi_vzlet_sharing: {
         Relationships: [];
         Row: {
@@ -202,6 +229,10 @@ export type VzletPenaltyItemUpdate =
 // Opravilo na splošnem seznamu (brez datuma).
 export type VzletBacklogItem =
   Database["public"]["Tables"]["pisi_vzlet_backlog"]["Row"];
+
+// Rutinsko opravilo (velja do `valid_until`, vključno).
+export type VzletRoutine =
+  Database["public"]["Tables"]["pisi_vzlet_routines"]["Row"];
 
 export type VzletSharing =
   Database["public"]["Tables"]["pisi_vzlet_sharing"]["Row"];

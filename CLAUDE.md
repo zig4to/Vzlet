@@ -53,7 +53,11 @@ je treba ročno posodobiti.
 Tabele: `pisi_vzlet_tasks`, `pisi_vzlet_days`, `pisi_vzlet_penalty_pool`,
 `pisi_vzlet_sharing`, `pisi_vzlet_backlog` (splošni seznam opravil brez
 datuma — `VzletBacklogDialog`; `moveBacklogToDayAction` ga prek
-`addVzletTaskAction` prestavi na danes (= dodatna naloga) ali jutri (= core)). RLS povsod `user_id = auth.uid()` + dodatne
+`addVzletTaskAction` prestavi na danes (= dodatna naloga) ali jutri (= core)),
+`pisi_vzlet_routines` (rutinska opravila z `valid_until`, migracija `0011`;
+isti dialog s preklopom Splošni/Rutinski, dodajanje v `VzletRoutineDialog`;
+`addRoutineToDayAction` doda kopijo, rutina ostane; potekle skrije klient po
+lokalnem datumu). RLS povsod `user_id = auth.uid()` + dodatne
 "shared"-police za branje podatkov uporabnikov, ki imajo v
 `pisi_vzlet_sharing.shared = true` (glej `0005_vzlet_sharing.sql` za naloge,
 `0007_vzlet_days_shared.sql` za dnevne točke) — police se v Postgresu
