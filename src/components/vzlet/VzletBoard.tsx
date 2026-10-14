@@ -216,7 +216,9 @@ function TaskCard({
                   close();
                   if (
                     confirm(
-                      `Prestavim „${task.title}“ na jutri? Za jutri dobiš kazensko nalogo.`
+                      task.is_penalty
+                        ? `Prestavim kazensko nalogo „${task.title}“ na jutri? Za jutri dobiš še dve kazenski nalogi.`
+                        : `Prestavim „${task.title}“ na jutri? Za jutri dobiš kazensko nalogo.`
                     )
                   )
                     onMoveToTomorrow();

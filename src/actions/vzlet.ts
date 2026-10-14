@@ -477,7 +477,8 @@ export async function moveTaskToBacklogAction(
 
 /**
  * Neopravljeno današnje opravilo prestavi na `tomorrowStr` — cena za odlog je
- * ena kazenska naloga iz bazena za jutri (če je bazen prazen, je ni).
+ * ena kazenska naloga iz bazena za jutri, za kazensko nalogo pa dve (če je
+ * bazen prazen, kazni ni).
  * `created_at` ostane, zato je prestavljeno opravilo jutri core.
  */
 export async function moveTaskToTomorrowAction(
@@ -489,25 +490,38 @@ export async function moveTaskToTomorrowAction(
   const user = await getAuthUser(supabase);
   if (!user) return { error: "Nisi prijavljen." };
 
+  const { data: task } = await supabase
+    .from("pisi_vzlet_tasks")
+    .select("is_penalty")
+    .eq("id", id)
+    .eq("done", false)
+    .maybeSingle();
+  if (!task) return { error: "Opravila ni več." };
+
   const position = await nextVzletPosition(supabase, user.id, tomorrowStr);
   const { error } = await supabase
     .from("pisi_vzlet_tasks")
     .update({ for_date: tomorrowStr, position })
-    .eq("id", id)
-    .eq("done", false);
+    .eq("id", id);
   if (error) return { error: "Napaka pri prestavljanju: " + error.message };
 
+  // Odlog kazenske naloge je dražji: dve novi kazni namesto ene.
   const { data: pool } = await supabase
     .from("pisi_vzlet_penalty_pool")
     .select("title");
-  const [penalty] = pickPenalties((pool ?? []).map((p) => p.title), 1);
-  if (penalty) {
-    await supabase.from("pisi_vzlet_tasks").insert({
-      title: penalty,
-      for_date: tomorrowStr,
-      is_penalty: true,
-      position: position + 1,
-    });
+  const titles = pickPenalties(
+    (pool ?? []).map((p) => p.title),
+    task.is_penalty ? 2 : 1
+  );
+  if (titles.length > 0) {
+    await supabase.from("pisi_vzlet_tasks").insert(
+      titles.map((title, i) => ({
+        title,
+        for_date: tomorrowStr,
+        is_penalty: true,
+        position: position + 1 + i,
+      }))
+    );
   }
 
   revalidatePath("/", "layout");
