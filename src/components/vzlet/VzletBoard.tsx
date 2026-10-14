@@ -16,6 +16,8 @@ import {
   deleteRoutineAction,
   deleteVzletTaskAction,
   moveBacklogToDayAction,
+  moveTaskToBacklogAction,
+  moveTaskToTomorrowAction,
   renameVzletTaskAction,
   setVzletTaskDifficultyAction,
   settleVzletAction,
@@ -88,6 +90,8 @@ function TaskCard({
   onRename,
   onRate,
   onDelete,
+  onMoveToBacklog,
+  onMoveToTomorrow,
 }: {
   task: VzletTask;
   showCheckbox: boolean;
@@ -95,6 +99,9 @@ function TaskCard({
   onRename: () => void;
   onRate: () => void;
   onDelete: () => void;
+  onMoveToBacklog: () => void;
+  /** Samo za današnja opravila — jutrišnja so že na jutri. */
+  onMoveToTomorrow?: () => void;
 }) {
   // Dodatne (isti dan dodane) naloge so vedno vredne 1 bonus točko — zanje
   // ocena težavnosti ni relevantna, zato se "Oceni težavnost" ne ponudi.
@@ -191,6 +198,31 @@ function TaskCard({
                 {task.difficulty == null
                   ? "Oceni težavnost"
                   : "Spremeni oceno"}
+              </MenuItem>
+            )}
+            {!task.done && !task.is_penalty && task.routine_id == null && (
+              <MenuItem
+                onClick={() => {
+                  close();
+                  onMoveToBacklog();
+                }}
+              >
+                Vrni na seznam
+              </MenuItem>
+            )}
+            {onMoveToTomorrow && !task.done && task.routine_id == null && (
+              <MenuItem
+                onClick={() => {
+                  close();
+                  if (
+                    confirm(
+                      `Prestavim „${task.title}“ na jutri? Za jutri dobiš kazensko nalogo.`
+                    )
+                  )
+                    onMoveToTomorrow();
+                }}
+              >
+                Prestavi na jutri
               </MenuItem>
             )}
             <MenuItem
@@ -371,6 +403,24 @@ export default function VzletBoard({
     startTransition(() => deleteVzletTaskAction(id));
   };
 
+  // Splošni seznam se osveži prek revalidatePath (nov backlog id dobi strežnik).
+  const handleMoveToBacklog = (id: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    startTransition(async () => {
+      await moveTaskToBacklogAction(id);
+    });
+  };
+
+  // Kazenska naloga za jutri pride s strežnika prek revalidatePath.
+  const handleMoveToTomorrow = (id: string) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, for_date: tomorrowStr } : t))
+    );
+    startTransition(async () => {
+      await moveTaskToTomorrowAction(id, tomorrowStr);
+    });
+  };
+
   // Sporočilo o dnevnem cilju gleda IZKLJUČNO na "Današnje naloge" (vnaprej
   // načrtovane) — nedokončane dodatne (bonus) naloge nanj ne vplivajo.
   const progressLine =
@@ -404,6 +454,8 @@ export default function VzletBoard({
               })
             }
             onDelete={() => handleDelete(task.id)}
+            onMoveToBacklog={() => handleMoveToBacklog(task.id)}
+            onMoveToTomorrow={() => handleMoveToTomorrow(task.id)}
           />
         ))}
       </ul>
@@ -433,6 +485,8 @@ export default function VzletBoard({
               })
             }
             onDelete={() => handleDelete(task.id)}
+            onMoveToBacklog={() => handleMoveToBacklog(task.id)}
+            onMoveToTomorrow={() => handleMoveToTomorrow(task.id)}
           />
         ))}
       </ul>
@@ -601,6 +655,7 @@ export default function VzletBoard({
               })
             }
                     onDelete={() => handleDelete(task.id)}
+                    onMoveToBacklog={() => handleMoveToBacklog(task.id)}
                   />
                 ))}
               </ul>

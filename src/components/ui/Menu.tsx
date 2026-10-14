@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import clsx from "@/lib/utils/clsx";
 import { IconMore } from "@/components/ui/icons";
 
@@ -12,6 +19,14 @@ type MenuProps = {
   className?: string;
 };
 
+const GAP = 4;
+const EDGE = 8;
+
+/**
+ * Plavajoči meni se izriše prek portala v `document.body` s `position: fixed`
+ * — sicer ga starš z `overflow-y-auto` (npr. seznam "Današnje naloge")
+ * odreže. Če pod gumbom ni prostora, se odpre navzgor.
+ */
 export default function Menu({
   children,
   label = "Več možnosti",
@@ -20,27 +35,67 @@ export default function Menu({
   className,
 }: MenuProps) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPos(null);
+      return;
+    }
+    const btn = buttonRef.current?.getBoundingClientRect();
+    const panel = panelRef.current;
+    if (!btn || !panel) return;
+    const w = panel.offsetWidth;
+    const h = panel.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let top = btn.bottom + GAP;
+    if (top + h > vh - EDGE && btn.top - GAP - h >= EDGE) {
+      top = btn.top - GAP - h;
+    }
+    let left = align === "right" ? btn.right - w : btn.left;
+    left = Math.min(Math.max(left, EDGE), vw - w - EDGE);
+    setPos({ top, left });
+  }, [open, align]);
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        !rootRef.current?.contains(target) &&
+        !panelRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    // Fiksni meni bi ob drsenju "visel" stran od gumba — raje ga zapremo.
+    const onScroll = (e: Event) => {
+      if (!panelRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onResize = () => setOpen(false);
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
     };
   }, [open]);
 
   return (
     <div className={clsx("relative", className)} ref={rootRef}>
       <button
+        ref={buttonRef}
         type="button"
         aria-label={label}
         onClick={(e) => {
@@ -55,16 +110,21 @@ export default function Menu({
       >
         {trigger ?? <IconMore />}
       </button>
-      {open && (
-        <div
-          className={clsx(
-            "absolute z-30 mt-1 min-w-44 rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:shadow-black/40",
-            align === "right" ? "right-0" : "left-0"
-          )}
-        >
-          {children(() => setOpen(false))}
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{
+              top: pos?.top ?? 0,
+              left: pos?.left ?? 0,
+              visibility: pos ? "visible" : "hidden",
+            }}
+            className="fixed z-[60] min-w-44 rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:shadow-black/40"
+          >
+            {children(() => setOpen(false))}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

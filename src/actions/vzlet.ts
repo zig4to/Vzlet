@@ -452,6 +452,68 @@ export async function moveBacklogToDayAction(
   return {};
 }
 
+/**
+ * Obratno od `moveBacklogToDayAction`: neopravljeno opravilo vrne na splošni
+ * seznam (npr. ko je bilo s seznama izbrano ponesreči).
+ */
+export async function moveTaskToBacklogAction(
+  id: string
+): Promise<VzletFormState> {
+  const supabase = await createClient();
+  const { data: task } = await supabase
+    .from("pisi_vzlet_tasks")
+    .select("title")
+    .eq("id", id)
+    .maybeSingle();
+  if (!task) return { error: "Opravila ni več." };
+
+  const res = await addBacklogAction(task.title);
+  if (res.error) return res;
+
+  await supabase.from("pisi_vzlet_tasks").delete().eq("id", id);
+  revalidatePath("/", "layout");
+  return {};
+}
+
+/**
+ * Neopravljeno današnje opravilo prestavi na `tomorrowStr` — cena za odlog je
+ * ena kazenska naloga iz bazena za jutri (če je bazen prazen, je ni).
+ * `created_at` ostane, zato je prestavljeno opravilo jutri core.
+ */
+export async function moveTaskToTomorrowAction(
+  id: string,
+  tomorrowStr: string
+): Promise<VzletFormState> {
+  if (!DATE_RE.test(tomorrowStr)) return { error: "Neveljaven datum." };
+  const supabase = await createClient();
+  const user = await getAuthUser(supabase);
+  if (!user) return { error: "Nisi prijavljen." };
+
+  const position = await nextVzletPosition(supabase, user.id, tomorrowStr);
+  const { error } = await supabase
+    .from("pisi_vzlet_tasks")
+    .update({ for_date: tomorrowStr, position })
+    .eq("id", id)
+    .eq("done", false);
+  if (error) return { error: "Napaka pri prestavljanju: " + error.message };
+
+  const { data: pool } = await supabase
+    .from("pisi_vzlet_penalty_pool")
+    .select("title");
+  const [penalty] = pickPenalties((pool ?? []).map((p) => p.title), 1);
+  if (penalty) {
+    await supabase.from("pisi_vzlet_tasks").insert({
+      title: penalty,
+      for_date: tomorrowStr,
+      is_penalty: true,
+      position: position + 1,
+    });
+  }
+
+  revalidatePath("/", "layout");
+  return {};
+}
+
 // ===== Rutinski seznam opravil =====
 
 async function nextRoutinePosition(supabase: Supa): Promise<number> {
